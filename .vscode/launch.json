@@ -1,0 +1,24 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Quart (Launch)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "quart",
+            "env": {
+                "QUART_APP": "server/python/server.py",
+                "QUART_DEBUG": "1"
+            },
+            "args": [
+                "run",
+                "--no-reload"
+            ],
+            "jinja": true,
+            "autoStartBrowser": false
+        }
+    ]
+}

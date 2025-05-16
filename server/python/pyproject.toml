@@ -1,0 +1,34 @@
+[project]
+name = "genesys-audiohook-websocket-server"
+version = "0.1.0"
+description = "A reference implementation of a WebSocket server on Azure, designed to integrate with [Genesys AudioHook protocol](https://developer.genesys.cloud/devapps/audiohook) for real-time transcription and summarization."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.11.7",
+    "azure-cognitiveservices-speech>=1.40.0",
+    "azure-identity>=1.19.0",
+    "azure-storage-blob>=12.24.0",
+    "gunicorn>=23.0.0",
+    "numpy>=2.1.1",
+    "python-dotenv>=1.0.1",
+    "quart>=0.19.6",
+    "uvicorn>=0.30.6",
+    "audioop-lts; python_version>='3.13'",
+    "azure-eventhub>=5.13.0",
+    "azure-cosmos>=4.9.0",
+    "pydantic>=2.11.3",
+    "websockets>=15.0.1",
+    "openai>=1.77.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pre-commit>=3.8.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest>=8.3.3",
+    "ruff>=0.6.7",
+]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
