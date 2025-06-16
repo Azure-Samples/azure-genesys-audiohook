@@ -202,15 +202,15 @@ wheels = [
 
 [[package]]
 name = "azure-eventhub"
-version = "5.14.0"
+version = "5.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "azure-core" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/71/b1/cac32982e58ee6e20d65d8dc357bccda206ba4b3c5958eda89c7a32a72df/azure_eventhub-5.14.0.tar.gz", hash = "sha256:5130880884101a96a57cb7c5b37c64b0409877429d54c0d570378b4f0b7b6d35", size = 397892, upload-time = "2025-02-13T19:13:52.293Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/c0/dcd6af1d8d0ef5e8d5a1e8762b5c11a2515ad72590e7b49b408d88365f66/azure_eventhub-5.15.0.tar.gz", hash = "sha256:c22d508b95977edbdbc844d693b9f5403b2c4e4ca075ac38d8dcb5657aba6e89", size = 400997, upload-time = "2025-04-15T23:17:39.988Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/49/6e/6d8c80a8c865772f40a1a414c2572917bc8e92dbf514ff47db520642b553/azure_eventhub-5.14.0-py3-none-any.whl", hash = "sha256:25fe930b09d5666954f9adbfd8671f95800d08f0398c3996b48286be21021fe1", size = 326268, upload-time = "2025-02-13T19:13:54.207Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/71/2312bda79c2e4f7fc45c63d4d748495c2ee37e31d1c191b450c8acbc955c/azure_eventhub-5.15.0-py3-none-any.whl", hash = "sha256:30f99f2f573b056098aaec50181d7e884fe564e5afe97b7d7a875ed42573c9dc", size = 327751, upload-time = "2025-04-15T23:17:42.033Z" },
 ]
 
 [[package]]
