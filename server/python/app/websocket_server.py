@@ -5,6 +5,7 @@ import logging
 import os
 from typing import Any
 
+# TODO, CHECK ALL THE DICTS AND REPLACE WITH THE CORRESPONDING MESSAGES.
 # Speech provider abstraction
 from azure.storage.blob.aio import BlobServiceClient
 from quart import Quart, request, websocket
@@ -18,10 +19,20 @@ from .enums import (
 )
 from .events.event_publisher import EventPublisher
 from .models import (
+    ClientMessage,
+    ClientMessageBase,
+    ClosedMessage,
+    CloseMessage,
     Conversation,
     ConversationsResponse,
+    DisconnectMessage,
+    DisconnectMessageParameters,
     Error,
     HealthCheckResponse,
+    OpenMessage,
+    PingMessage,
+    ServerMessageBase,
+    UpdateMessage,
     WebSocketSessionStorage,
 )
 from .speech.azure_ai_speech_provider import AzureAISpeechProvider
@@ -170,7 +181,7 @@ class WebsocketServer:
                 status="unhealthy",
                 error=Error(
                     code="conversations_store",
-                    message=f"Conversations store is unhealthy. {str(e)}.",
+                    message=f"Conversations store is unhealthy. {e!s}.",
                 ),
             ).model_dump(), 503
 
@@ -188,7 +199,7 @@ class WebsocketServer:
                     status="unhealthy",
                     error=Error(
                         code="blob_storage",
-                        message=f"Blob storage is unhealthy. {str(e)}.",
+                        message=f"Blob storage is unhealthy. {e!s}.",
                     ),
                 ).model_dump(), 503
 
@@ -206,7 +217,7 @@ class WebsocketServer:
                     status="unhealthy",
                     error=Error(
                         code="event_hub",
-                        message=f"Event Hub is unhealthy. {str(e)}.",
+                        message=f"Event Hub is unhealthy. {e!s}.",
                     ),
                 ).model_dump(), 503
 
@@ -294,7 +305,27 @@ class WebsocketServer:
                 data = await websocket.receive()
 
                 if isinstance(data, str):
-                    await self.handle_incoming_message(json.loads(data))
+                    # Parse JSON to get message type, then validate with the appropriate model
+                    json_data = json.loads(data)
+                    message_type = json_data.get("type")
+                    # Use match-case to select the appropriate message model
+                    match message_type:
+                        case ClientMessageType.OPEN:
+                            client_message = OpenMessage.model_validate_json(data)
+                        case ClientMessageType.PING:
+                            client_message = PingMessage.model_validate_json(data)
+                        case ClientMessageType.UPDATE:
+                            client_message = UpdateMessage.model_validate_json(data)
+                        case ClientMessageType.CLOSE:
+                            client_message = CloseMessage.model_validate_json(data)
+                        case _:
+                            # Fallback for unknown message types
+                            self.logger.warning(
+                                f"[{session_id}] Unknown message type: {message_type}"
+                            )
+                            client_message = ClientMessageBase.model_validate_json(data)
+                    self.logger.debug(f"[{session_id}] Received message: {data}")
+                    await self.handle_incoming_message(client_message)
                 elif isinstance(data, bytes):
                     await self.handle_bytes(data, session_id)
                 else:
@@ -325,61 +356,61 @@ class WebsocketServer:
         since the client did not send an open message.
         """
         self.logger.warning(message)
-        await websocket.send_json(
-            {
-                "version": "2",
-                "type": ServerMessageType.DISCONNECT,
-                "seq": 1,
-                "clientseq": 1,
-                "id": session_id,
-                "parameters": {
-                    "reason": reason,
-                    "info": message,
-                },
-            }
+
+        # Create a disconnect message using the Pydantic model
+        disconnect_params = DisconnectMessageParameters(reason=reason, info=message)
+        disconnect_message = DisconnectMessage(
+            version="2",
+            type=ServerMessageType.DISCONNECT,
+            seq=1,
+            clientseq=1,
+            id=session_id,
+            parameters=disconnect_params.model_dump(),
         )
+
+        await websocket.send_json(disconnect_message.model_dump())
         return await websocket.close(code)
 
     async def send_message(
         self,
         type: ServerMessageType,
-        client_message: dict,
+        client_message: ClientMessage,
         parameters: dict = {},
     ):
         """Send a message to the client."""
-        session_id = client_message["id"]
+        session_id = client_message.id
         ws_session = self.active_ws_sessions[session_id]
         ws_session.server_seq += 1
 
-        server_message = {
-            "version": "2",
-            "type": type,
-            "seq": ws_session.server_seq,
-            "clientseq": client_message["seq"],
-            "id": session_id,
-            "parameters": parameters,
-        }
+        server_message = ServerMessageBase(
+            version="2",
+            type=type,
+            seq=ws_session.server_seq,
+            clientseq=client_message.seq,
+            id=session_id,
+            parameters=parameters,
+        )
         self.logger.info(f"[{session_id}] Server sending message with type {type}.")
         self.logger.debug(server_message)
-        await websocket.send_json(server_message)
+        await websocket.send_json(server_message.model_dump())
 
-    async def handle_incoming_message(self, message: dict):
+    async def handle_incoming_message(self, message: ClientMessage):
         """Handle incoming messages (JSON)."""
-        session_id = message["id"]
-        message_type = message["type"]
+        session_id = message.id
+        message_type = message.type
 
         # Validate sequence number
         ws_session = self.active_ws_sessions[session_id]
-        if message["seq"] != ws_session.client_seq + 1:
+        if message.seq != ws_session.client_seq + 1:
             await self.disconnect(
                 reason=DisconnectReason.ERROR,
-                message=f"Sequence number mismatch: received {message['seq']}, expected {ws_session.client_seq + 1}",
+                message=f"Sequence number mismatch: received {message.seq}, expected {ws_session.client_seq + 1}",
                 code=3000,
                 session_id=session_id,
             )
 
         # Store new sequence number
-        ws_session.client_seq = message["seq"]
+        ws_session.client_seq = message.seq
 
         match message_type:
             case ClientMessageType.OPEN:
@@ -392,17 +423,17 @@ class WebsocketServer:
                 await self.handle_close_message(message)
             case _:
                 self.logger.info(
-                    f"[{session_id}] Unknown message type: {message['type']} : {message}"
+                    f"[{session_id}] Unknown message type: {message.type} : {message}"
                 )
 
-    async def handle_ping_message(self, message: dict):
+    async def handle_ping_message(self, message: PingMessage):
         """
         Handle a ping message from the client. Note that these ping/pong messages are a protocol feature distinct from the WebSocket
         ping/pong messages (which are not used).
 
         See https://developer.genesys.cloud/devapps/audiohook/protocol-reference#ping
         """
-        await self.send_message(type=ServerMessageType.PONG, client_message=message)
+        await self.send_message(type=ServerMessageType.PONG, server_message=message)
 
         session_id = message["id"]
         ws_session = self.active_ws_sessions[session_id]
@@ -412,7 +443,7 @@ class WebsocketServer:
                 ws_session.conversation_id, message["parameters"]["rtt"]
             )
 
-    async def handle_open_message(self, message: dict):
+    async def handle_open_message(self, message: OpenMessage):
         """
         Reply to an open message from the client. The server must respond to an open message with an "opened" message.
 
@@ -421,14 +452,14 @@ class WebsocketServer:
 
         See https://developer.genesys.cloud/devapps/audiohook/session-walkthrough#open-transaction
         """
-        parameters = message["parameters"]
-        conversation_id = parameters["conversationId"]
-        ani = parameters["participant"]["ani"]
-        ani_name = parameters["participant"]["aniName"]
-        dnis = parameters["participant"]["dnis"]
-        session_id = message["id"]
-        media = parameters["media"]
-        position = message["position"]
+        parameters = message.parameters
+        conversation_id = parameters.conversation_id
+        ani = parameters.participant.ani
+        ani_name = parameters.participant.ani_name
+        dnis = parameters.participant.dnis
+        session_id = message.id
+        media = parameters.media
+        position = message.position
 
         # Store conversation_id in the temp session storage
         ws_session = self.active_ws_sessions[session_id]
@@ -450,8 +481,8 @@ class WebsocketServer:
             (
                 m
                 for m in media
-                if len(m["channels"]) == 2
-                and {"internal", "external"}.issubset(m["channels"])
+                if len(m.channels) == 2
+                and {"internal", "external"}.issubset(m.channels)
             ),
             media[0],
         )
@@ -502,18 +533,18 @@ class WebsocketServer:
             )
         )
 
-    async def handle_update_message(self, message: dict):
+    async def handle_update_message(self, message: UpdateMessage):
         """Handle update message"""
-        parameters = message["parameters"]
-        language = parameters["language"]
-        session_id = message["id"]
+        parameters = message.parameters
+        language = parameters.language
+        session_id = message.id
 
         self.logger.info(f"[{session_id}] Received update: language {language}")
 
-    async def handle_close_message(self, message: dict):
+    async def handle_close_message(self, message: ClosedMessage):
         """Handle close message"""
-        parameters = message["parameters"]
-        session_id = message["id"]
+        parameters = message.parameters
+        session_id = message.id
         ws_session = self.active_ws_sessions[session_id]
         conversation_id = ws_session.conversation_id
 
@@ -521,7 +552,7 @@ class WebsocketServer:
         # See https://developer.genesys.cloud/devapps/audiohook/patterns-and-practices#connection-probe
         if conversation_id == "00000000-0000-0000-0000-000000000000":
             await self.send_message(
-                type=ServerMessageType.CLOSED, client_message=message
+                type=ServerMessageType.CLOSED, server_message=message
             )
 
             if session_id in self.active_ws_sessions:
@@ -548,7 +579,7 @@ class WebsocketServer:
                 )
 
             await self.send_message(
-                type=ServerMessageType.CLOSED, client_message=message
+                type=ServerMessageType.CLOSED, server_message=message
             )
 
             await websocket.close(1000)
@@ -558,14 +589,14 @@ class WebsocketServer:
             if session_id in self.active_ws_sessions:
                 del self.active_ws_sessions[session_id]
 
-    async def handle_connection_probe(self, message: dict):
+    async def handle_connection_probe(self, message: OpenMessage):
         """
         Handle connection probe
 
         To verify configuration settings before they are committed in the administration interface, the Genesys Cloud client attempts to establish a WebSocket connection to the configured URI followed by a synthetic AudioHook session.
         This connection probe and synthetic session helps flagging integration configuration issues and verify minimal server compliance without needing manual test calls.
         """
-        session_id = message["id"]
+        session_id = message.id
 
         self.logger.info(
             f"[{session_id}] Connection probe. Conversation should not be logged and transcribed."
@@ -573,7 +604,7 @@ class WebsocketServer:
 
         await self.send_message(
             type=ServerMessageType.OPENED,
-            client_message=message,
+            server_message=message,
             parameters={
                 "startPaused": False,
                 "media": [],
