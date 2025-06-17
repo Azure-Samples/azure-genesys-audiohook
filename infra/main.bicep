@@ -21,7 +21,7 @@ var tags = {
   application: 'azure-genesys-audiohook'
 }
 var rgName = 'rg-${environmentName}-${uniqueSuffix}'
-var modelName = 'gpt-4.1-mini'
+var modelName = 'azure-openai-gpt4o-transcribe'
 
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: rgName
