@@ -79,3 +79,5 @@ output openAiId string = openAi.id
 output speechId string = speech.id
 @secure()
 output speechKey string = speech.listKeys().key1
+@secure()
+output aoaiKey string = openAi.listKeys().key1

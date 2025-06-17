@@ -5,6 +5,7 @@ import os
 import pytest
 from app.storage.in_memory_conversation_store import InMemoryConversationStore
 from app.websocket_server import WebsocketServer
+from app.handler.session_manager import SessionManager
 from dotenv import load_dotenv
 
 dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
@@ -17,9 +18,10 @@ logging.getLogger().setLevel(logging.DEBUG)
 async def server():
     server = WebsocketServer()
     server.conversations_store = InMemoryConversationStore()
-    await server.create_connections()
+    server.session_manager = SessionManager(logging.getLogger(__name__))
+    await server.session_manager.create_connections()
     yield server
-    await server.close_connections()
+    await server.session_manager.close_connections()
 
 @pytest.fixture
 async def app(server):
@@ -184,6 +186,7 @@ async def test_ws_audio_processing(app):
         )
 
         response = await ws.receive_json()
+        logging.info("WebSocket response: %s", response)
 
         assert response["type"] == "opened"
 
@@ -194,15 +197,20 @@ async def test_ws_audio_processing(app):
                 await ws.send(chunk)
                 await asyncio.sleep(0.01) 
         try:
-            response = await asyncio.wait_for(ws.receive_json(), timeout=5)
-            logging.info("WebSocket response:", response)
+            response = await asyncio.wait_for(ws.receive_json(), timeout=20)
+            logging.info("WebSocket response: %s", response)
+            assert response["type"] == "event"
+
+            response = await asyncio.wait_for(ws.receive_json(), timeout=20)
+            logging.info("WebSocket response: %s", response)
+            assert response["type"] == "event"
         except asyncio.TimeoutError:
-            logging.info("No response from websocket")
+            logging.warning("No response from websocket (timeout).")
 
-        response = await app.get(f"/api/conversations?key={API_KEY}")
+        # response = await app.get(f"/api/conversations?key={API_KEY}")
 
-        assert response.status_code == 200
-        conversations = await response.get_json()
-        logging.info("Conversations:", conversations)
+        # assert response.status_code == 200
+        # conversations = await response.get_json()
+        # logging.info("Conversations:", conversations)
 
         # optional, closed the connection

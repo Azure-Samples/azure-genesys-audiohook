@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any
+from typing import Any, Callable
 
 import azure.cognitiveservices.speech as speechsdk
 from pydantic import BaseModel, ConfigDict, Field
@@ -61,6 +61,8 @@ class WebSocketSessionStorage(BaseModel):
     conversation_id: str | None = None
     # Provider-specific speech session storage
     speech_session: Any | None = None
+    send_message_callback: Callable
+    close_websocket_callback: Callable
 
 
 class Error(BaseModel):

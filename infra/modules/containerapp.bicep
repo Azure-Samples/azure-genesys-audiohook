@@ -13,6 +13,7 @@ param speechRegion string
 param apiKeySecretUri string
 param clientSecretUri string
 param speechKeySecretUri string
+param aoaiKeySecretUri string
 param azureSpeechLanguages string
 param eventHubNamespaceName string
 param eventHubName string
@@ -87,6 +88,11 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
           keyVaultUrl: speechKeySecretUri
           identity: 'system'
         }
+        {
+          name: 'azure-openai-key'
+          keyVaultUrl: aoaiKeySecretUri
+          identity: 'system'
+        }
       ]
     }
     template: {
@@ -106,6 +112,11 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
             {
               name: 'AZURE_OPENAI_MODEL_DEPLOYMENT'
               value: modelDeploymentName
+            }
+            // TODO - remove when update all auth to managed identity
+            {
+              name: 'AZURE_OPENAI_KEY'
+              secretRef: 'azure-openai-key'
             }
             {
               name: 'AZURE_SPEECH_RESOURCE_ID'

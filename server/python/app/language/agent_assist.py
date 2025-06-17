@@ -12,6 +12,11 @@ class AgentAssistant():
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
 
+        # Load configuration from environment
+        self.aoai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        self.aoai_deployment = os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT")
+        self.aoai_key = os.getenv("AZURE_OPENAI_KEY")
+        
         self.kernel = self.initialize_kernel()
         self.reducer = ChatHistorySummarizationReducer(
             service=self.kernel.get_service(service_id="chat-completion"),
@@ -28,11 +33,6 @@ class AgentAssistant():
         Do NOT suggest what the customer might say next.
         """)
         self.message_buffer = []
-
-        # Load configuration from environment
-        self.aoai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.aoai_deployment = os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT")
-        self.aoai_key = os.getenv("AZURE_OPENAI_KEY")
     
     def initialize_kernel(self):
         kernel = Kernel()
