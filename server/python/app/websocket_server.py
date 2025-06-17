@@ -31,7 +31,6 @@ from .models import (
     HealthCheckResponse,
     OpenMessage,
     PingMessage,
-    ServerMessageBase,
     UpdateMessage,
     WebSocketSessionStorage,
 )
@@ -45,6 +44,7 @@ from .storage.conversation_store import get_conversation_store
 from .storage.in_memory_conversation_store import (
     InMemoryConversationStore,
 )
+from .utils.helpers import process_parameters
 from .utils.identity import get_azure_credential_async
 
 
@@ -381,18 +381,18 @@ class WebsocketServer:
         session_id = client_message.id
         ws_session = self.active_ws_sessions[session_id]
         ws_session.server_seq += 1
-
-        server_message = ServerMessageBase(
-            version="2",
-            type=type,
-            seq=ws_session.server_seq,
-            clientseq=client_message.seq,
-            id=session_id,
-            parameters=parameters,
-        )
+        processed_parameters = process_parameters(parameters)
+        server_message = {
+            "version": "2",
+            "type": type,
+            "seq": ws_session.server_seq,
+            "clientseq": client_message.seq,
+            "id": session_id,
+            "parameters": processed_parameters,
+        }
         self.logger.info(f"[{session_id}] Server sending message with type {type}.")
         self.logger.debug(server_message)
-        await websocket.send_json(server_message.model_dump())
+        await websocket.send_json(server_message)
 
     async def handle_incoming_message(self, message: ClientMessage):
         """Handle incoming messages (JSON)."""
@@ -643,6 +643,7 @@ class WebsocketServer:
         """Send an JSON event to Azure Event Hub using the EventPublisher abstraction."""
         if not self.event_publisher:
             return
+        processed_message = process_parameters(message)
 
         if session_id in self.active_ws_sessions:
             # Get the conversation ID from the active WebSocket session
@@ -650,7 +651,7 @@ class WebsocketServer:
             await self.event_publisher.send_event(
                 event_type=f"azure-genesys-audiohook.{event}",
                 conversation_id=ws_session.conversation_id,
-                message=message,
+                message=processed_message,
                 properties=properties,
             )
             self.logger.debug(f"[{session_id}] Sending event: {event} {message}")
