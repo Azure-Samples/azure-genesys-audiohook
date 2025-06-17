@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, ClassVar
 
 import websockets
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class AzureOpenAIGPT4oTranscriber(SpeechProvider):
     """Azure OpenAI GPT-4o streaming transcription provider."""
 
-    supported_languages: list[str] = [
+    supported_languages: ClassVar[list[str]] = [
         "af",
         "ar",
         "az",

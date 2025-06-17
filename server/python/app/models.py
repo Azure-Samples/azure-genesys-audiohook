@@ -9,7 +9,7 @@ Also includes other models used throughout the application.
 """
 
 import asyncio
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 import azure.cognitiveservices.speech as speechsdk
 from pydantic import BaseModel, ConfigDict, Field
@@ -239,10 +239,10 @@ class UpdatedMessage(ServerMessageBase):
 
 
 # Union types for all message types
-ClientMessage = Union[OpenMessage, PingMessage, UpdateMessage, CloseMessage]
-ServerMessage = Union[
-    DisconnectMessage, OpenedMessage, PongMessage, ClosedMessage, UpdatedMessage
-]
+ClientMessage = OpenMessage | PingMessage | UpdateMessage | CloseMessage
+ServerMessage = (
+    DisconnectMessage | OpenedMessage | PongMessage | ClosedMessage | UpdatedMessage
+)
 
 
 # Other application models

@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import azure.cognitiveservices.speech as speechsdk
 
@@ -22,7 +22,7 @@ from .speech_provider import SpeechProvider
 class AzureAISpeechProvider(SpeechProvider):
     """Azure AI Speech implementation of SpeechProvider."""
 
-    supported_languages: list[str] = []
+    supported_languages: ClassVar[list[str]] = []
 
     def __init__(
         self,

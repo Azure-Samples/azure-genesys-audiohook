@@ -3,7 +3,7 @@ import functools
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, ClassVar
 
 # TODO, CHECK ALL THE DICTS AND REPLACE WITH THE CORRESPONDING MESSAGES.
 # Speech provider abstraction
@@ -49,7 +49,7 @@ from .utils.identity import get_azure_credential_async
 class WebsocketServer:
     """Websocket server class"""
 
-    active_ws_sessions: dict[str, WebSocketSessionStorage] = {}
+    active_ws_sessions: ClassVar[dict[str, WebSocketSessionStorage]] = {}
     logger: logging.Logger = logging.getLogger(__name__)
     blob_service_client: BlobServiceClient | None = None
     conversations_store: ConversationStore | None = None
@@ -373,8 +373,10 @@ class WebsocketServer:
         self,
         type: ServerMessageType,
         client_message: ClientMessage,
-        parameters: dict = {},
+        parameters: dict | None = None,
     ):
+        if parameters is None:
+            parameters = {}
         """Send a message to the client."""
         session_id = client_message.id
         ws_session = self.active_ws_sessions[session_id]
@@ -514,7 +516,7 @@ class WebsocketServer:
 
         self.logger.info(f"[{session_id}] Session opened with media: {selected_media}")
 
-        asyncio.create_task(
+        task = asyncio.create_task(
             self.send_event(
                 event=AzureGenesysEvent.SESSION_STARTED,
                 session_id=session_id,
@@ -529,6 +531,9 @@ class WebsocketServer:
                 properties={},
             )
         )
+        # Store task reference to prevent garbage collection
+        ws_session.active_tasks = getattr(ws_session, "active_tasks", [])
+        ws_session.active_tasks.append(task)
 
     async def handle_update_message(self, message: UpdateMessage):
         """Handle update message"""
@@ -635,9 +640,11 @@ class WebsocketServer:
         event: AzureGenesysEvent,
         session_id: str,
         message: dict[str, Any],
-        properties: dict[str, str] | None = {},
+        properties: dict[str, str] | None = None,
     ):
         """Send an JSON event to Azure Event Hub using the EventPublisher abstraction."""
+        if properties is None:
+            properties = {}
         if not self.event_publisher:
             return
 
