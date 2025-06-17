@@ -83,7 +83,7 @@ class SessionManager:
                     or os.getenv("AZURE_SPEECH_RESOURCE_ID")
                 ):
                     self.speech_provider = AzureAISpeechProvider(
-                        self.conversations_store, self.send_event, self.send_message, self.logger
+                        self.conversations_store, self.send_event, self.logger
                     )
                 else:
                     raise RuntimeError(
@@ -95,7 +95,7 @@ class SessionManager:
                     os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT")
                 ):
                     self.speech_provider = AzureOpenAIGPT4oTranscriber(
-                        self.conversations_store, self.send_event, self.send_message, self.logger
+                        self.conversations_store, self.send_event, self.logger
                     )
                 else:
                     raise RuntimeError(
@@ -110,7 +110,7 @@ class SessionManager:
         # Initialize handlers after resources are ready
         self.health_handler = HealthHandler(self.conversations_store, self.blob_service_client, self.event_publisher, self.logger)
         self.message_handler = MessageHandler(
-            self.speech_provider, self.conversations_store, self.send_event, self.send_message, self.remove_session, self.logger)
+            self.speech_provider, self.conversations_store, self.send_event, self.remove_session, self.logger)
         self.media_handler = MediaHandler(self.speech_provider, self.conversations_store, self.logger)
 
     async def close_connections(self):
@@ -191,8 +191,15 @@ class SessionManager:
 
         await websocket.accept()
 
+        websocket = websocket._get_current_object() # real object rather than local proxy
+        async def send_message_callback(type: ServerMessageType, client_message: dict, parameters: dict = {}):
+            await self.send_message(websocket, type, client_message, parameters)
+        
+        async def close_websocket_callback():
+            await websocket.close(1000)
+
         # Save new client in persistent storage
-        self.active_ws_sessions[session_id] = WebSocketSessionStorage(websocket = websocket)
+        self.active_ws_sessions[session_id] = WebSocketSessionStorage(send_message_callback=send_message_callback, close_websocket_callback=close_websocket_callback)
 
         correlation_id = headers["Audiohook-Correlation-Id"]
         self.logger.info(f"[{session_id}] Accepted websocket connection from {remote}")
@@ -217,7 +224,6 @@ class SessionManager:
                 data = await websocket.receive()
 
                 if isinstance(data, str):
-                    print(f"income session_id {session_id}")
                     await self.message_handler.handle_incoming_message(json.loads(data), self.active_ws_sessions[session_id])
                 elif isinstance(data, bytes):
                     await self.media_handler.handle_bytes(data, session_id, self.active_ws_sessions[session_id])
@@ -268,6 +274,7 @@ class SessionManager:
     # To avoid circular dependencies, implemented in session_manager and referenced by handlers via that shared instance.
     async def send_message(
         self,
+        websocket,
         type: ServerMessageType,
         client_message: dict,
         parameters: dict = {},
@@ -288,9 +295,8 @@ class SessionManager:
         }
         self.logger.info(f"[{session_id}] Server sending message with type {type}.")
         self.logger.debug(server_message)
-        print(f"Sending message to session_id={session_id}, websocket: {ws_session.websocket}")
         try:
-            await ws_session.websocket.send_json(server_message)
+            await websocket.send_json(server_message)
         except Exception as e:
             self.logger.error(f"Failed to send message for session {session_id}: {e}")
 

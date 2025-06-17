@@ -197,11 +197,13 @@ async def test_ws_audio_processing(app):
                 await ws.send(chunk)
                 await asyncio.sleep(0.01) 
         try:
-            while True:
-                response = await asyncio.wait_for(ws.receive_json(), timeout=20)
-                logging.info("WebSocket response: %s", response)
-                if response.get("type") == "stop":
-                    break
+            response = await asyncio.wait_for(ws.receive_json(), timeout=20)
+            logging.info("WebSocket response: %s", response)
+            assert response["type"] == "event"
+
+            response = await asyncio.wait_for(ws.receive_json(), timeout=20)
+            logging.info("WebSocket response: %s", response)
+            assert response["type"] == "event"
         except asyncio.TimeoutError:
             logging.warning("No response from websocket (timeout).")
 

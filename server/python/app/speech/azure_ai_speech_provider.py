@@ -3,6 +3,7 @@ import json
 import logging
 import os
 from typing import Any, Awaitable, Callable, cast
+from quart import websocket
 
 import azure.cognitiveservices.speech as speechsdk
 
@@ -23,12 +24,10 @@ class AzureAISpeechProvider(SpeechProvider):
         self,
         conversations_store: ConversationStore,
         send_event_callback: Callable[..., Awaitable[None]],
-        send_message_callback: Callable[..., Awaitable[None]],
         logger: logging.Logger,
     ) -> None:
         self.conversations_store = conversations_store
         self.send_event = send_event_callback
-        self.send_message = send_message_callback
         self.logger = logger
 
         # Load configuration from environment
@@ -243,11 +242,10 @@ class AzureAISpeechProvider(SpeechProvider):
         duration = result.get("Duration", 0)
         start = f"PT{offset / 10_000_000:.2f}S" # convert 100ns ticks to seconds
         end = f"PT{(offset + duration) / 10_000_000:.2f}S"
-        confidence = 0.85  # Azure SDK does not provide exact confidence; this can be mocked or inferred
+        words = result.get("NBest", [{}])[0].get("Words", [])
 
         channel = result.get("Channel") if is_multichannel else 1
 
-        print(f"recognized channel: {channel}, text: {text}, start: {start}, end:{end}")
         item = TranscriptItem(
             channel=channel,
             text=text,
@@ -256,9 +254,9 @@ class AzureAISpeechProvider(SpeechProvider):
         )
 
         transcript_entity = build_transcript_entity(
-            channel_id="CUSTOMER",  # or "AGENT" based on session metadata
+            channel_id="CUSTOMER",
             transcript_text=text,
-            confidence=confidence,
+            words=words,
             is_final=True,
             offset=offset,
             duration=duration,
@@ -278,17 +276,17 @@ class AzureAISpeechProvider(SpeechProvider):
             ),
             loop,
         )
-        print(f"Sending event message to session_id={session_id}, websocket: {ws_session.websocket}")
+
         asyncio.run_coroutine_threadsafe(
-            self.send_message(
+            ws_session.send_message_callback(
                 type=ServerMessageType.EVENT,
                 client_message={"id": session_id},
-                parameters={"entities": transcript_entity}
+                parameters={"entities": [transcript_entity]} # Client expect a list
             ),
             loop,
         )
 
-        async def _assist(offset, confidence, duration, end):
+        async def _assist(session_id, offset, confidence, duration, end):
             speech_session = cast(AzureAISpeechSession, ws_session.speech_session)
             if speech_session.assist:
                 summary = await speech_session.assist.on_transcription(text)
@@ -314,14 +312,18 @@ class AzureAISpeechProvider(SpeechProvider):
                         suggestions=[]  # fill with FAQ/articles if available
                     )
 
-                    self.send_message(
-                        type=ServerMessageType.EVENT,
-                        client_message={"sessionId": session_id},
-                        parameters={"entities": agent_assist_entity}
-                    )
-             
-
-        asyncio.run_coroutine_threadsafe(_assist(offset, confidence, duration, end), loop)
+                    try:
+                        await ws_session.send_message_callback(
+                            type=ServerMessageType.EVENT,
+                            client_message={"id": session_id},
+                            parameters={"entities": [agent_assist_entity]}
+                        )
+                    except Exception as e:
+                        self.logger.warning(f"[{session_id}] Failed to send assist message: {e}")
+        first_word = words[0] if words else {}
+        position_str=f"PT{first_word.get('Offset', offset) / 10_000_000:.2f}S"
+        duration_str=f"PT{duration / 10_000_000:.2f}S"
+        asyncio.run_coroutine_threadsafe(_assist(session_id, position_str, 0.85, duration_str, end), loop)
 
     def _on_session_stopped(
         self,
@@ -358,10 +360,10 @@ class AzureAISpeechProvider(SpeechProvider):
                         suggestions=[]  # fill with FAQ/articles if available
                     )
 
-                    self.send_message(
+                    await ws_session.send_message_callback(
                         type=ServerMessageType.EVENT,
-                        client_message={"sessionId": session_id},
-                        parameters={"entities": agent_assist_entity}
+                        client_message={"id": session_id},
+                        parameters={"entities": [agent_assist_entity]}
                     )
 
         asyncio.run_coroutine_threadsafe(_flush_summary(), loop)

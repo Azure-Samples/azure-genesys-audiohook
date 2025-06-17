@@ -25,13 +25,11 @@ class MessageHandler:
         speech_provider:SpeechProvider,
         conversations_store: ConversationStore,
         send_event_callback: Callable[..., Awaitable[None]],
-        send_message_callback: Callable[..., Awaitable[None]],
         remove_session_callback:Callable[[str], None],
         logger: logging.Logger,
     ):
         self.speech_provider = speech_provider
         self.conversations_store = conversations_store
-        self.send_message = send_message_callback
         self.send_event = send_event_callback
         self.remove_session= remove_session_callback
         self.logger = logger
@@ -39,7 +37,6 @@ class MessageHandler:
     async def handle_incoming_message(self, message: dict, ws_session: WebSocketSessionStorage):
         """Handle incoming messages (JSON)."""
         session_id = message["id"]
-        print(f"income message session id {session_id}, websocket {ws_session.websocket}")
         message_type = message["type"]
 
         # Validate sequence number
@@ -75,7 +72,7 @@ class MessageHandler:
 
         See https://developer.genesys.cloud/devapps/audiohook/protocol-reference#ping
         """
-        await self.send_message(type=ServerMessageType.PONG, client_message=message)
+        await ws_session.send_message_callback(type=ServerMessageType.PONG, client_message=message)
 
         if message["parameters"].get("rtt"):
             await self.conversations_store.append_rtt(
@@ -106,7 +103,7 @@ class MessageHandler:
         # Handle connection probe
         # See https://developer.genesys.cloud/devapps/audiohook/patterns-and-practices#connection-probe
         if conversation_id == "00000000-0000-0000-0000-000000000000":
-            await self.handle_connection_probe(message)
+            await self.handle_connection_probe(message, ws_session)
             return
 
         self.logger.info(
@@ -143,7 +140,7 @@ class MessageHandler:
                 session_id, ws_session, selected_media
             )
 
-        await self.send_message(
+        await ws_session.send_message_callback(
             type=ServerMessageType.OPENED,
             client_message=message,
             parameters={
@@ -187,7 +184,7 @@ class MessageHandler:
         # Handle connection probe
         # See https://developer.genesys.cloud/devapps/audiohook/patterns-and-practices#connection-probe
         if conversation_id == "00000000-0000-0000-0000-000000000000":
-            await self.send_message(
+            await ws_session.send_message_callback(
                 type=ServerMessageType.CLOSED, client_message=message
             )
 
@@ -212,17 +209,17 @@ class MessageHandler:
                     message={"transcript": transcript},
                 )
 
-            await self.send_message(
+            await ws_session.send_message_callback(
                 type=ServerMessageType.CLOSED, client_message=message
             )
 
-            await ws_session.websocket.close(1000)
+            await ws_session.close_websocket_callback()
 
             # Set the client session to inactive and remove the temporary client session
             await self.conversations_store.set_active(conversation_id, False)
             self.remove_session(session_id)
 
-    async def handle_connection_probe(self, message: dict):
+    async def handle_connection_probe(self, message: dict, ws_session: WebSocketSessionStorage):
         """
         Handle connection probe
 
@@ -235,7 +232,7 @@ class MessageHandler:
             f"[{session_id}] Connection probe. Conversation should not be logged and transcribed."
         )
 
-        await self.send_message(
+        await ws_session.send_message_callback(
             type=ServerMessageType.OPENED,
             client_message=message,
             parameters={
