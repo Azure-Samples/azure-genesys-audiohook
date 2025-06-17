@@ -43,7 +43,6 @@ from .storage.conversation_store import get_conversation_store
 from .storage.in_memory_conversation_store import (
     InMemoryConversationStore,
 )
-from .utils.helpers import process_parameters
 from .utils.identity import get_azure_credential_async
 
 
@@ -380,14 +379,13 @@ class WebsocketServer:
         session_id = client_message.id
         ws_session = self.active_ws_sessions[session_id]
         ws_session.server_seq += 1
-        processed_parameters = process_parameters(parameters)
         server_message = {
             "version": "2",
             "type": type,
             "seq": ws_session.server_seq,
             "clientseq": client_message.seq,
             "id": session_id,
-            "parameters": processed_parameters,
+            "parameters": parameters,
         }
         self.logger.info(f"[{session_id}] Server sending message with type {type}.")
         self.logger.debug(server_message)
@@ -510,7 +508,7 @@ class WebsocketServer:
             client_message=message,
             parameters={
                 "startPaused": False,
-                "media": [selected_media],
+                "media": [selected_media.model_dump(exclude_none=True)],
             },
         )
 
@@ -525,7 +523,7 @@ class WebsocketServer:
                     "ani-name": ani_name,
                     "conversation-id": conversation_id,
                     "dnis": dnis,
-                    "media": selected_media,
+                    "media": selected_media.model_dump(exclude_none=True),
                     "position": position,
                 },
                 properties={},
@@ -642,7 +640,6 @@ class WebsocketServer:
         """Send an JSON event to Azure Event Hub using the EventPublisher abstraction."""
         if not self.event_publisher:
             return
-        processed_message = process_parameters(message)
 
         if session_id in self.active_ws_sessions:
             # Get the conversation ID from the active WebSocket session
@@ -650,7 +647,7 @@ class WebsocketServer:
             await self.event_publisher.send_event(
                 event_type=f"azure-genesys-audiohook.{event}",
                 conversation_id=ws_session.conversation_id,
-                message=processed_message,
+                message=message,
                 properties=properties,
             )
             self.logger.debug(f"[{session_id}] Sending event: {event} {message}")
