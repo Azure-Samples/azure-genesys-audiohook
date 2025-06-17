@@ -56,8 +56,8 @@ class MediaChannelInfo(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     type: str
-    codec: str = Field(alias="format")
-    sample_rate: int = Field(alias="rate")
+    format: str = Field(alias="codec")
+    rate: int = Field(alias="rate")
     channels: list[str]
 
 

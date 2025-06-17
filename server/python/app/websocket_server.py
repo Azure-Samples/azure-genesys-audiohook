@@ -21,7 +21,6 @@ from .events.event_publisher import EventPublisher
 from .models import (
     ClientMessage,
     ClientMessageBase,
-    ClosedMessage,
     CloseMessage,
     Conversation,
     ConversationsResponse,
@@ -433,7 +432,7 @@ class WebsocketServer:
 
         See https://developer.genesys.cloud/devapps/audiohook/protocol-reference#ping
         """
-        await self.send_message(type=ServerMessageType.PONG, server_message=message)
+        await self.send_message(type=ServerMessageType.PONG, client_message=message)
 
         session_id = message["id"]
         ws_session = self.active_ws_sessions[session_id]
@@ -541,7 +540,7 @@ class WebsocketServer:
 
         self.logger.info(f"[{session_id}] Received update: language {language}")
 
-    async def handle_close_message(self, message: ClosedMessage):
+    async def handle_close_message(self, message: CloseMessage):
         """Handle close message"""
         parameters = message.parameters
         session_id = message.id
@@ -566,7 +565,7 @@ class WebsocketServer:
         if self.speech_provider:
             await self.speech_provider.shutdown_session(session_id, ws_session)
 
-        if parameters["reason"] == CloseReason.END:
+        if parameters.reason == CloseReason.END:
             if conversation and conversation.media:
                 transcript = [
                     item.model_dump() if hasattr(item, "model_dump") else dict(item)
@@ -579,7 +578,7 @@ class WebsocketServer:
                 )
 
             await self.send_message(
-                type=ServerMessageType.CLOSED, server_message=message
+                type=ServerMessageType.CLOSED, client_message=message
             )
 
             await websocket.close(1000)

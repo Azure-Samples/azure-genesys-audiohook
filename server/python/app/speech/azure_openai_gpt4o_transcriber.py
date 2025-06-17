@@ -8,7 +8,7 @@ from typing import Any, Awaitable, Callable
 import websockets
 
 from ..enums import AzureGenesysEvent
-from ..models import TranscriptItem, WebSocketSessionStorage
+from ..models import MediaChannelInfo, TranscriptItem, WebSocketSessionStorage
 from ..storage.base_conversation_store import ConversationStore
 from ..utils.audio import split_stream
 from ..utils.identity import get_access_token
@@ -159,7 +159,7 @@ class AzureOpenAIGPT4oTranscriber(SpeechProvider):
         self,
         session_id: str,
         ws_session: WebSocketSessionStorage,
-        media: dict[str, Any],
+        media: MediaChannelInfo,
         data: bytes,
     ) -> None:
         """Send incoming audio directly to both OpenAI websockets (customer and agent channels)."""
@@ -174,7 +174,7 @@ class AzureOpenAIGPT4oTranscriber(SpeechProvider):
             ws_agent = speech_session["ws_agent"]
 
             # If stereo, split and send both channels
-            if len(media["channels"]) > 1:
+            if len(media.channels) > 1:
                 customer, agent = split_stream(data)
 
                 # Send customer (channel 0) and agent (channel 1) concurrently

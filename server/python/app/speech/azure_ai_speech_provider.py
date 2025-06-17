@@ -2,12 +2,18 @@ import asyncio
 import json
 import logging
 import os
-from typing import Any, Awaitable, Callable, cast
+from collections.abc import Awaitable, Callable
+from typing import Any, cast
 
 import azure.cognitiveservices.speech as speechsdk
 
 from ..enums import AzureGenesysEvent
-from ..models import AzureAISpeechSession, TranscriptItem, WebSocketSessionStorage
+from ..models import (
+    AzureAISpeechSession,
+    MediaChannelInfo,
+    TranscriptItem,
+    WebSocketSessionStorage,
+)
 from ..storage.base_conversation_store import ConversationStore
 from ..utils.identity import get_speech_token
 from .speech_provider import SpeechProvider
@@ -63,7 +69,7 @@ class AzureAISpeechProvider(SpeechProvider):
         self,
         session_id: str,
         ws_session: WebSocketSessionStorage,
-        media: dict[str, Any],
+        media: MediaChannelInfo,
         data: bytes,
     ) -> None:
         """Feed incoming chunks into the push stream and raw buffer."""
