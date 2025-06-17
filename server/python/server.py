@@ -10,6 +10,7 @@ load_dotenv(find_dotenv())
 
 LOGGER: logging.Logger = logging.getLogger(__name__)
 
+
 def configure_logging() -> None:
     """Configure logging based on environment variables."""
     if os.getenv("DEBUG_MODE") == "true":
@@ -54,6 +55,7 @@ def main() -> None:
     except Exception as e:
         LOGGER.error(f"Application failed to start: {e}")
         sys.exit(1)
+
 
 # Initialize module-level variables for application context
 configure_logging()

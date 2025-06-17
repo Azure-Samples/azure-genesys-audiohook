@@ -1,10 +1,11 @@
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
-from app.utils.identity import get_azure_credential_async
 from azure.eventhub import EventData
 from azure.eventhub.aio import EventHubProducerClient
+
+from app.utils.identity import get_azure_credential_async
 
 
 class EventPublisher:
@@ -40,8 +41,8 @@ class EventPublisher:
         self,
         event_type: str,
         conversation_id: str,
-        message: Dict[str, Any],
-        properties: Optional[Dict[str, str]] = None,
+        message: dict[str, Any],
+        properties: dict[str, str] | None = None,
     ):
         event_data_batch = await self.producer_client.create_batch()
         event_data = EventData(json.dumps(message))
