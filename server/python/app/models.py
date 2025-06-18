@@ -278,7 +278,7 @@ class WebSocketSessionStorage(BaseModel):
     """Temporary in-memory storage for WebSocket session state"""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
+    active_tasks: list[Any] = Field(default_factory=list)
     client_seq: int = 0
     server_seq: int = 0
     conversation_id: str | None = None

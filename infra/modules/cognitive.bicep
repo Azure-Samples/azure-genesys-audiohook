@@ -21,26 +21,10 @@ resource openAi 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   }
 }
 
-// resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
-//   parent: openAi
-//   name: modelDeploymentName
-//   sku: {
-//     name: 'GlobalStandard'
-//     capacity: 30
-//   }
-//   properties: {
-//     model: {
-//       format: 'OpenAI'
-//       name: modelDeploymentName
-//       version: '2025-04-14'
-//     }
-//     raiPolicyName: 'Microsoft.DefaultV2'
-//   }
-// }
 
 resource gpt4oTranscribeDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
   parent: openAi
-  name: 'gpt-4o-transcribe'
+  name: modelDeploymentName
   sku: {
     name: 'GlobalStandard'
     capacity: 60

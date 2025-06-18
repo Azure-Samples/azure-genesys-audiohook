@@ -30,6 +30,7 @@ from .models import (
     HealthCheckResponse,
     OpenMessage,
     PingMessage,
+    ServerMessageBase,
     UpdateMessage,
     WebSocketSessionStorage,
 )
@@ -363,7 +364,7 @@ class WebsocketServer:
             seq=1,
             clientseq=1,
             id=session_id,
-            parameters=disconnect_params.model_dump(),
+            parameters=disconnect_params,
         )
 
         await websocket.send_json(disconnect_message.model_dump())
@@ -381,17 +382,17 @@ class WebsocketServer:
         session_id = client_message.id
         ws_session = self.active_ws_sessions[session_id]
         ws_session.server_seq += 1
-        server_message = {
-            "version": "2",
-            "type": type,
-            "seq": ws_session.server_seq,
-            "clientseq": client_message.seq,
-            "id": session_id,
-            "parameters": parameters,
-        }
+        server_message = ServerMessageBase(
+            version="2",
+            type=type,
+            seq=ws_session.server_seq,
+            clientseq=client_message.seq,
+            id=session_id,
+            parameters=parameters,
+        )
         self.logger.info(f"[{session_id}] Server sending message with type {type}.")
         self.logger.debug(server_message)
-        await websocket.send_json(server_message)
+        await websocket.send_json(server_message.model_dump(exclude_none=True))
 
     async def handle_incoming_message(self, message: ClientMessage):
         """Handle incoming messages (JSON)."""
