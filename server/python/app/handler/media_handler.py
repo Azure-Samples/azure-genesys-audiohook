@@ -14,6 +14,10 @@ class MediaHandler:
         conversations_store: ConversationStore,
         logger: logging.Logger
     ):
+        if not speech_provider:
+            logger.error("Speech provider is not configured.")
+            raise ValueError("speech_provider must be provided.")
+
         self.conversations_store = conversations_store
         self.speech_provider = speech_provider
         self.logger = logger
@@ -28,9 +32,6 @@ class MediaHandler:
 
         position=\frac{samplesProcessed}{sampleRate}
         """
-        if not self.speech_provider:
-            self.logger.error(f"[{session_id}] No speech provider configured.")
-            return
 
         conversation = await self.conversations_store.get(ws_session.conversation_id)
         media = conversation.media

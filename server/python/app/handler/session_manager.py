@@ -68,6 +68,8 @@ class SessionManager:
             self.blob_service_client = BlobServiceClient(
                 account_url, credential=get_azure_credential_async()
             )
+        else:
+            self.blob_service_client = None
 
         self.conversations_store = get_conversation_store()
 
@@ -103,9 +105,8 @@ class SessionManager:
                     )
             else:
                 raise RuntimeError(
-                    "No speech provider selected."
+                    "Unsupported speech provider."
                 )
-        self.logger.info(f"Speech provider set: {self.speech_provider}")
 
         # Initialize handlers after resources are ready
         self.health_handler = HealthHandler(self.conversations_store, self.blob_service_client, self.event_publisher, self.logger)
@@ -179,6 +180,7 @@ class SessionManager:
                 message="No session ID provided",
                 code=1008,
                 session_id=None,
+                websocket=websocket
             )
 
         if headers["X-Api-Key"] != os.getenv("WEBSOCKET_SERVER_API_KEY"):
@@ -187,6 +189,7 @@ class SessionManager:
                 message="Invalid API Key",
                 code=3000,
                 session_id=session_id,
+                websocket=websocket
             )
 
         await websocket.accept()
@@ -197,9 +200,6 @@ class SessionManager:
         
         async def close_websocket_callback():
             await websocket.close(1000)
-
-        # Save new client in persistent storage
-        self.active_ws_sessions[session_id] = WebSocketSessionStorage(send_message_callback=send_message_callback, close_websocket_callback=close_websocket_callback)
 
         correlation_id = headers["Audiohook-Correlation-Id"]
         self.logger.info(f"[{session_id}] Accepted websocket connection from {remote}")
@@ -216,7 +216,12 @@ class SessionManager:
                 message="Invalid signature",
                 code=3000,
                 session_id=session_id,
+                websocket=websocket
             )
+        
+        # Save new client in persistent storage
+        self.active_ws_sessions[session_id] = WebSocketSessionStorage(send_message_callback=send_message_callback, close_websocket_callback=close_websocket_callback)
+
 
         # Open the websocket connection and start receiving data (messages / audio)
         try:
@@ -246,30 +251,40 @@ class SessionManager:
                 del self.active_ws_sessions[session_id]
 
     async def disconnect(
-        self, reason: DisconnectReason, message: str, code: int, session_id: str | None
+        self, reason: DisconnectReason, message: str, code: int, session_id: str | None, websocket=None,
     ):
         """
         Disconnect the websocket connection gracefully.
 
         Using sequence number 1 for the disconnect message as per the protocol specification,
         since the client did not send an open message.
+        If session_id is not known yet, use the raw websocket object to send message.
         """
-        ws_session = self.active_ws_sessions[session_id]
-        self.logger.warning(message)
-        await ws_session.websocket.send_json(
-            {
-                "version": "2",
-                "type": ServerMessageType.DISCONNECT,
-                "seq": 1,
-                "clientseq": 1,
-                "id": session_id,
-                "parameters": {
-                    "reason": reason,
-                    "info": message,
-                },
-            }
-        )
-        return await ws_session.websocket.close(code)
+        session_id = session_id or "unknown"
+        self.logger.warning(f"[{session_id}] {message}")
+
+        payload = {
+            "version": "2",
+            "type": ServerMessageType.DISCONNECT,
+            "seq": 1,
+            "clientseq": 1,
+            "id": session_id,
+            "parameters": {
+                "reason": reason,
+                "info": message,
+            },
+        }
+
+        if websocket:
+            await websocket.send_json(payload)
+            return await websocket.close(code)
+
+        if session_id in self.active_ws_sessions:
+            ws_session = self.active_ws_sessions[session_id]
+            await ws_session.websocket.send_json(payload)
+            return await ws_session.websocket.close(code)
+
+        self.logger.warning(f"Cannot disconnect — no websocket found for session_id={session_id}")
 
     # To avoid circular dependencies, implemented in session_manager and referenced by handlers via that shared instance.
     async def send_message(

@@ -68,6 +68,7 @@ class AzureAISpeechProvider(SpeechProvider):
                 self._recognize_speech(session_id, ws_session)
             ),
             assist=assist,
+            assist_futures = []
         )
 
     async def handle_audio_frame(
@@ -92,6 +93,7 @@ class AzureAISpeechProvider(SpeechProvider):
         self,
         session_id: str,
         ws_session: WebSocketSessionStorage,
+        finalize_callback: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         """Signal end of audio and await recognition finish."""
         if ws_session.speech_session is None:
@@ -110,6 +112,10 @@ class AzureAISpeechProvider(SpeechProvider):
                 await task
             except Exception as ex:
                 self.logger.error(f"[{session_id}] Recognition error: {ex}")
+
+        # Finalize now — clean up session after recognition ends
+        if finalize_callback:
+            await finalize_callback()
 
     async def close(self) -> None:
         """No global cleanup needed for Azure Speech."""
@@ -206,6 +212,10 @@ class AzureAISpeechProvider(SpeechProvider):
         await asyncio.to_thread(recognizer.stop_continuous_recognition_async().get)
         self.logger.info(f"[{session_id}] Recognition stopped.")
 
+        # Wait for final summary suggestion if there is
+        await self._await_pending_assist(ws_session)
+        await self._flush_summary(session_id, ws_session)
+
     def _on_recognizing(
         self, session_id: str, evt: speechsdk.SpeechRecognitionEventArgs
     ) -> None:
@@ -286,44 +296,14 @@ class AzureAISpeechProvider(SpeechProvider):
             loop,
         )
 
-        async def _assist(session_id, offset, confidence, duration, end):
-            speech_session = cast(AzureAISpeechSession, ws_session.speech_session)
-            if speech_session.assist:
-                summary = await speech_session.assist.on_transcription(text)
-                if summary:
-                    summaryItem = SummaryItem(
-                        text=summary.content,
-                        transcription_end=end,
-                    )
-                    await self.conversations_store.append_summary( ws_session.conversation_id, summaryItem)
-
-                    utterance = build_agent_assist_utterance(
-                        position=offset,
-                        text=summary.content,
-                        language="en-US", # To be updated
-                        confidence=confidence,
-                        channel="CUSTOMER",
-                        is_final=True,
-                        duration=duration,
-                    )
-
-                    agent_assist_entity = build_agent_assist_entity(
-                        utterances=[utterance],
-                        suggestions=[]  # fill with FAQ/articles if available
-                    )
-
-                    try:
-                        await ws_session.send_message_callback(
-                            type=ServerMessageType.EVENT,
-                            client_message={"id": session_id},
-                            parameters={"entities": [agent_assist_entity]}
-                        )
-                    except Exception as e:
-                        self.logger.warning(f"[{session_id}] Failed to send assist message: {e}")
         first_word = words[0] if words else {}
-        position_str=f"PT{first_word.get('Offset', offset) / 10_000_000:.2f}S"
-        duration_str=f"PT{duration / 10_000_000:.2f}S"
-        asyncio.run_coroutine_threadsafe(_assist(session_id, position_str, 0.85, duration_str, end), loop)
+        speech_session = cast(AzureAISpeechSession, ws_session.speech_session)
+        future = asyncio.create_task(
+            self.handle_agent_assist(
+                session_id, ws_session, text, first_word.get('Offset', offset), duration, end
+            )
+        )
+        speech_session.assist_futures.append(future)
 
     def _on_session_stopped(
         self,
@@ -333,41 +313,97 @@ class AzureAISpeechProvider(SpeechProvider):
         done_event: asyncio.Event,
         evt: speechsdk.SessionEventArgs,
     ) -> None:
-        async def _flush_summary():
-            speech_session = cast(AzureAISpeechSession, ws_session.speech_session)
-            if hasattr(speech_session, "assist") and speech_session.assist:
-                summary = await speech_session.assist.flush_summary()
-
-                if summary:
-                    summaryItem = SummaryItem(
-                        text=summary.content,
-                        transcription_end="end",
-                    )
-                    await self.conversations_store.append_summary( ws_session.conversation_id, summaryItem)
-
-                    utterance = build_agent_assist_utterance(
-                        position=0,
-                        text=summary.content,
-                        language="en-US", # To be updated
-                        confidence=0.85,
-                        channel="CUSTOMER",
-                        is_final=True,
-                        duration="PT1S",
-                    )
-
-                    agent_assist_entity = build_agent_assist_entity(
-                        utterances=[utterance],
-                        suggestions=[]  # fill with FAQ/articles if available
-                    )
-
-                    await ws_session.send_message_callback(
-                        type=ServerMessageType.EVENT,
-                        client_message={"id": session_id},
-                        parameters={"entities": [agent_assist_entity]}
-                    )
-
-        asyncio.run_coroutine_threadsafe(_flush_summary(), loop)
-
         """Signal that continuous recognition has finished."""
         self.logger.info(f"[{session_id}] Session stopped: {evt.session_id}")
         done_event.set()
+
+    async def handle_agent_assist(
+        self,
+        session_id: str,
+        ws_session: WebSocketSessionStorage,
+        text: str,
+        offset: int,
+        duration: int,
+        end: str,
+        confidence: float = 0.85,
+    ):
+        speech_session = cast(AzureAISpeechSession, ws_session.speech_session)
+        if not (speech_session and speech_session.assist):
+            return
+
+        summary = await speech_session.assist.on_transcription(text)
+        if summary:
+            summary_item = SummaryItem(text=summary.content, transcription_end=end)
+            await self.conversations_store.append_summary(ws_session.conversation_id, summary_item)
+
+            utterance = build_agent_assist_utterance(
+                position=f"PT{offset / 10_000_000:.2f}S",
+                text=summary.content,
+                language="en-US",  # Optional: Make dynamic
+                confidence=confidence,
+                channel="CUSTOMER",
+                is_final=True,
+                duration=f"PT{duration / 10_000_000:.2f}S",
+            )
+
+            agent_assist_entity = build_agent_assist_entity(
+                utterances=[utterance],
+                suggestions=[],
+            )
+
+            try:
+                await ws_session.send_message_callback(
+                    type=ServerMessageType.EVENT,
+                    client_message={"id": session_id},
+                    parameters={"entities": [agent_assist_entity]},
+                )
+            except Exception as e:
+                self.logger.warning(f"[{session_id}] Failed to send assist message: {e}")
+
+    async def _flush_summary(self, session_id: str, ws_session: WebSocketSessionStorage) -> None:
+        speech_session = cast(AzureAISpeechSession, ws_session.speech_session)
+        if hasattr(speech_session, "assist") and speech_session.assist:
+            summary = await speech_session.assist.flush_summary()
+            if summary:
+                summary_item = SummaryItem(
+                    text=summary.content,
+                    transcription_end="end",
+                )
+                await self.conversations_store.append_summary(ws_session.conversation_id, summary_item)
+
+                utterance = build_agent_assist_utterance(
+                    position=0,
+                    text=summary.content,
+                    language="en-US",  # update if needed
+                    confidence=0.85,
+                    channel="CUSTOMER",
+                    is_final=True,
+                    duration="PT1S",
+                )
+
+                entity = build_agent_assist_entity(
+                    utterances=[utterance],
+                    suggestions=[],
+                )
+
+                try:
+                    await ws_session.send_message_callback(
+                        type=ServerMessageType.EVENT,
+                        client_message={"id": session_id},
+                        parameters={"entities": [entity]}
+                    )
+                except Exception as e:
+                    self.logger.warning(f"[{session_id}] Failed to send summary: {e}")
+
+    async def _await_pending_assist(self, ws_session: WebSocketSessionStorage):
+        speech_session = cast(AzureAISpeechSession, ws_session.speech_session)
+        pending = speech_session.assist_futures
+        if not pending:
+            return
+
+        self.logger.info(f"[{ws_session.conversation_id}] Awaiting {len(pending)} assist tasks.")
+        for future in pending:
+            try:
+                await asyncio.wrap_future(future)
+            except Exception as e:
+                self.logger.warning(f"Assist future failed: {e}")

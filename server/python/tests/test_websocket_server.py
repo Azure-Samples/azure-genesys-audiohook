@@ -63,7 +63,7 @@ async def test_invalid_route(app):
 
 
 @pytest.mark.asyncio
-async def test_ws_invalid_api_key(server):
+async def test_ws_invalid_api_key(app):
     """Test websocket connection with invalid API key"""
 
     headers = {
@@ -74,12 +74,32 @@ async def test_ws_invalid_api_key(server):
         "Signature": "test_signature",
     }
 
-    async with server.app.websocket("/audiohook/ws", headers=headers) as ws:
+    async with app.websocket("/audiohook/ws", headers=headers) as ws:
         response = await ws.receive_json()
 
         assert response["type"] == "disconnect"
         assert response["parameters"]["reason"] == "unauthorized"
         assert response["parameters"]["info"] == "Invalid API Key"
+
+@pytest.mark.asyncio
+async def test_ws_invalid_session_id(app):
+    """Test websocket connection with invalid API key"""
+
+    headers = {
+        "X-Api-Key": "invalid_key",
+        "Audiohook-Session-Id": "",
+        "Audiohook-Correlation-Id": "test_correlation",
+        "Signature-Input": "test_signature_input",
+        "Signature": "test_signature",
+    }
+
+    async with app.websocket("/audiohook/ws", headers=headers) as ws:
+        response = await ws.receive_json()
+
+        assert response["type"] == "disconnect"
+        assert response["parameters"]["reason"] == "error"
+        assert response["parameters"]["info"] == "No session ID provided"
+
 
 
 @pytest.mark.asyncio
@@ -206,11 +226,3 @@ async def test_ws_audio_processing(app):
             assert response["type"] == "event"
         except asyncio.TimeoutError:
             logging.warning("No response from websocket (timeout).")
-
-        # response = await app.get(f"/api/conversations?key={API_KEY}")
-
-        # assert response.status_code == 200
-        # conversations = await response.get_json()
-        # logging.info("Conversations:", conversations)
-
-        # optional, closed the connection

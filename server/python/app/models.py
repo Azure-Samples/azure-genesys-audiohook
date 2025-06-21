@@ -94,3 +94,4 @@ class AzureAISpeechSession(BaseModel):
     media: dict[str, Any]
     recognize_task: asyncio.Task
     assist: AgentAssistant
+    assist_futures: list[asyncio.Future]

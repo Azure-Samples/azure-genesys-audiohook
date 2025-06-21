@@ -22,17 +22,25 @@ class WebsocketServer:
 
     def setup_routes(self):
         """Setup the routes for the server"""
-        self.app.route("/")(self.session_manager.health_check)
+        @self.app.route("/")
+        async def health_check():
+            return await self.session_manager.health_check()
 
-        self.app.route("/api/conversations")(
-            require_api_key(self.session_manager.get_conversations)
-        )
-        self.app.route("/api/conversation/<conversation_id>")(
-            require_api_key(self.session_manager.get_conversation)
-        )
+        @self.app.route("/api/conversations")
+        @require_api_key
+        async def get_conversations():
+            return await self.session_manager.get_conversations()
+
+        @self.app.route("/api/conversation/<conversation_id>")
+        @require_api_key
+        async def get_conversation(conversation_id):
+            return await self.session_manager.get_conversation(conversation_id)
+        
+        @self.app.route("/viewconversations")
+        @require_api_key
+        async def serve_view():
+            return await self.serve_view()
 
         @self.app.websocket("/audiohook/ws")
         async def ws():
             await self.session_manager.handle_websocket(websocket)
-
-        self.app.route("/viewconversations")(require_api_key(self.serve_view))
