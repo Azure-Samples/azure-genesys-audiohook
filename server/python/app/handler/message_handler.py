@@ -177,7 +177,6 @@ class MessageHandler:
 
     async def handle_close_message(self, message: dict, ws_session: WebSocketSessionStorage):
         """Handle close message"""
-        parameters = message["parameters"]
         session_id = message["id"]
         conversation_id = ws_session.conversation_id
 
@@ -190,34 +189,15 @@ class MessageHandler:
 
             self.remove_session(session_id)
             return
-
-        conversation = await self.conversations_store.get(conversation_id)
-
+        
         # Close audio buffer (and recognition) if the session is ended
         if self.speech_provider:
-            await self.speech_provider.shutdown_session(session_id, ws_session)
-
-        if parameters["reason"] == CloseReason.END:
-            if conversation and conversation.media:
-                transcript = [
-                    item.model_dump() if hasattr(item, "model_dump") else dict(item)
-                    for item in (conversation.transcript or [])
-                ]
-                await self.send_event(
-                    event=AzureGenesysEvent.TRANSCRIPT_AVAILABLE,
-                    session_id=session_id,
-                    message={"transcript": transcript},
-                )
-
-            await ws_session.send_message_callback(
-                type=ServerMessageType.CLOSED, client_message=message
+            await self.speech_provider.shutdown_session(
+                session_id,
+                ws_session,
+                finalize_callback=lambda: self.finalize_session(session_id, ws_session, message)
             )
 
-            await ws_session.close_websocket_callback()
-
-            # Set the client session to inactive and remove the temporary client session
-            await self.conversations_store.set_active(conversation_id, False)
-            self.remove_session(session_id)
 
     async def handle_connection_probe(self, message: dict, ws_session: WebSocketSessionStorage):
         """
@@ -240,3 +220,27 @@ class MessageHandler:
                 "media": [],
             },
         )
+
+    async def finalize_session(self, session_id: str, ws_session: WebSocketSessionStorage, close_message: dict):
+        conversation_id = ws_session.conversation_id
+
+        conversation = await self.conversations_store.get(conversation_id)
+        if conversation and conversation.media:
+            transcript = [
+                item.model_dump() if hasattr(item, "model_dump") else dict(item)
+                for item in (conversation.transcript or [])
+            ]
+            await self.send_event(
+                event=AzureGenesysEvent.TRANSCRIPT_AVAILABLE,
+                session_id=session_id,
+                message={"transcript": transcript},
+            )
+
+        await ws_session.send_message_callback(
+            type=ServerMessageType.CLOSED,
+            client_message=close_message,
+        )
+
+        await ws_session.close_websocket_callback()
+        await self.conversations_store.set_active(conversation_id, False)
+        self.remove_session(session_id)

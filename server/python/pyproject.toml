@@ -20,7 +20,8 @@ dependencies = [
     "pydantic>=2.11.3",
     "websockets>=15.0.1",
     "openai>=1.77.0",
-    "semantic-kernel"
+    "semantic-kernel",
+    "jinja2>=3.1.2"
 ]
 
 [tool.uv]

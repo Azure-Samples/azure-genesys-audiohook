@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Optional
 
 from azure.storage.blob.aio import BlobServiceClient
 
@@ -20,8 +21,8 @@ class HealthHandler:
     def __init__(
         self,
         conversations_store: ConversationStore,
-        blob_service_client: BlobServiceClient,
-        event_publisher: EventPublisher,
+        blob_service_client: Optional[BlobServiceClient],
+        event_publisher: Optional[EventPublisher],
         logger: logging.Logger,
     ):
         self.conversations_store = conversations_store
@@ -59,7 +60,7 @@ class HealthHandler:
                     code="conversations_store",
                     message=f"Conversations store is unhealthy. {str(e)}.",
                 ),
-            ).model_dump(), 503
+            ).model_dump(), 500
 
         # Check Azure Blob Storage (if configured)
         if self.blob_service_client:
@@ -77,7 +78,7 @@ class HealthHandler:
                         code="blob_storage",
                         message=f"Blob storage is unhealthy. {str(e)}.",
                     ),
-                ).model_dump(), 503
+                ).model_dump(), 500
 
         # Check Azure Event Hub (if configured)
         if self.event_publisher:
@@ -95,7 +96,7 @@ class HealthHandler:
                         code="event_hub",
                         message=f"Event Hub is unhealthy. {str(e)}.",
                     ),
-                ).model_dump(), 503
+                ).model_dump(), 500
 
         # TODO check Azure Speech Service (if configured)
 
