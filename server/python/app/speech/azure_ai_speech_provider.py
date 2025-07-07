@@ -2,12 +2,18 @@ import asyncio
 import json
 import logging
 import os
-from typing import Any, Awaitable, Callable, cast
+from collections.abc import Awaitable, Callable
+from typing import ClassVar, cast
 
 import azure.cognitiveservices.speech as speechsdk
 
 from ..enums import AzureGenesysEvent
-from ..models import AzureAISpeechSession, TranscriptItem, WebSocketSessionStorage
+from ..models import (
+    AzureAISpeechSession,
+    MediaChannelInfo,
+    TranscriptItem,
+    WebSocketSessionStorage,
+)
 from ..storage.base_conversation_store import ConversationStore
 from ..utils.identity import get_speech_token
 from .speech_provider import SpeechProvider
@@ -16,7 +22,7 @@ from .speech_provider import SpeechProvider
 class AzureAISpeechProvider(SpeechProvider):
     """Azure AI Speech implementation of SpeechProvider."""
 
-    supported_languages: list[str] = []
+    supported_languages: ClassVar[list[str]] = []
 
     def __init__(
         self,
@@ -39,13 +45,13 @@ class AzureAISpeechProvider(SpeechProvider):
         self,
         session_id: str,
         ws_session: WebSocketSessionStorage,
-        media: dict[str, Any],
+        media: MediaChannelInfo,
     ) -> None:
         """Prepare audio push stream and launch recognition task."""
         audio_format = speechsdk.audio.AudioStreamFormat(
-            samples_per_second=media["rate"],
+            samples_per_second=media.rate,
             bits_per_sample=8,
-            channels=len(media["channels"]),
+            channels=len(media.channels),
             wave_stream_format=speechsdk.AudioStreamWaveFormat.MULAW,
         )
         stream = speechsdk.audio.PushAudioInputStream(stream_format=audio_format)
@@ -63,7 +69,7 @@ class AzureAISpeechProvider(SpeechProvider):
         self,
         session_id: str,
         ws_session: WebSocketSessionStorage,
-        media: dict[str, Any],
+        media: MediaChannelInfo,
         data: bytes,
     ) -> None:
         """Feed incoming chunks into the push stream and raw buffer."""
@@ -116,7 +122,7 @@ class AzureAISpeechProvider(SpeechProvider):
 
         speech_session = cast(AzureAISpeechSession, ws_session.speech_session)
         media = speech_session.media
-        is_multichannel = bool(media.get("channels", []) and len(media["channels"]) > 1)
+        is_multichannel = bool((media.channels) and len(media.channels) > 1)
 
         region = self.region
         endpoint = None

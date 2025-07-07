@@ -21,26 +21,10 @@ resource openAi 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   }
 }
 
-resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
-  parent: openAi
-  name: modelDeploymentName
-  sku: {
-    name: 'GlobalStandard'
-    capacity: 30
-  }
-  properties: {
-    model: {
-      format: 'OpenAI'
-      name: modelDeploymentName
-      version: '2025-04-14'
-    }
-    raiPolicyName: 'Microsoft.DefaultV2'
-  }
-}
 
 resource gpt4oTranscribeDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
   parent: openAi
-  name: 'gpt-4o-transcribe'
+  name: modelDeploymentName
   sku: {
     name: 'GlobalStandard'
     capacity: 60
@@ -55,7 +39,7 @@ resource gpt4oTranscribeDeployment 'Microsoft.CognitiveServices/accounts/deploym
   }
   // Azure may return a RequestConflict error if multiple deployments are created in parallel under the same OpenAI account.
   // This dependsOn ensures deployments are serialized to avoid conflicts.
-  dependsOn: [ gpt4oDeployment ]
+  //dependsOn: [ gpt4oDeployment ]
 }
 
 resource speech 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
@@ -74,7 +58,7 @@ resource speech 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
 
 output openAiEndpoint string = openAi.properties.endpoint
 output speechEndpoint string = speech.properties.endpoint
-output gpt4oDeploymentName string = gpt4oDeployment.name
+output gpt4oDeploymentName string = gpt4oTranscribeDeployment.name
 output openAiId string = openAi.id
 output speechId string = speech.id
 @secure()

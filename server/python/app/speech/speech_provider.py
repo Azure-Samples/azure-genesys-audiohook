@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, ClassVar
 
 
 class SpeechProvider(ABC):
     """Interface for speech providers."""
 
-    supported_languages: list[str] = []
+    supported_languages: ClassVar[list[str]] = []
 
     @abstractmethod
     async def initialize_session(
