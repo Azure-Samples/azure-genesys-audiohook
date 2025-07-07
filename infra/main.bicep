@@ -13,6 +13,7 @@ param containerImage string
 param azureSpeechLanguages string = 'en-US'
 
 @description('Speech provider to use')
+@allowed(['azure-ai-speech', 'azure-openai-gpt4o-transcribe'])
 param speechProvider string = 'azure-ai-speech'
 
 var uniqueSuffix = substring(uniqueString(subscription().id, environmentName), 0, 5)

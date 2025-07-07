@@ -314,5 +314,5 @@ class AzureAISpeechSession(BaseModel):
 
     audio_buffer: speechsdk.audio.PushAudioInputStream
     raw_audio: bytearray
-    media: dict[str, Any]
+    media: MediaChannelInfo
     recognize_task: asyncio.Task

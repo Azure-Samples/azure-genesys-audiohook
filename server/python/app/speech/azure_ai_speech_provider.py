@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from collections.abc import Awaitable, Callable
-from typing import Any, ClassVar, cast
+from typing import ClassVar, cast
 
 import azure.cognitiveservices.speech as speechsdk
 
@@ -45,13 +45,13 @@ class AzureAISpeechProvider(SpeechProvider):
         self,
         session_id: str,
         ws_session: WebSocketSessionStorage,
-        media: dict[str, Any],
+        media: MediaChannelInfo,
     ) -> None:
         """Prepare audio push stream and launch recognition task."""
         audio_format = speechsdk.audio.AudioStreamFormat(
-            samples_per_second=media["rate"],
+            samples_per_second=media.rate,
             bits_per_sample=8,
-            channels=len(media["channels"]),
+            channels=len(media.channels),
             wave_stream_format=speechsdk.AudioStreamWaveFormat.MULAW,
         )
         stream = speechsdk.audio.PushAudioInputStream(stream_format=audio_format)
@@ -122,7 +122,7 @@ class AzureAISpeechProvider(SpeechProvider):
 
         speech_session = cast(AzureAISpeechSession, ws_session.speech_session)
         media = speech_session.media
-        is_multichannel = bool(media.get("channels", []) and len(media["channels"]) > 1)
+        is_multichannel = bool((media.channels) and len(media.channels) > 1)
 
         region = self.region
         endpoint = None
