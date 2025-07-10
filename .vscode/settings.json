@@ -1,0 +1,18 @@
+{
+    "python.defaultInterpreterPath": "./server/python/.venv/bin/python",
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.autoTestDiscoverOnSaveEnabled": true,
+    "python.testing.pytestPath": "./server/python/.venv/bin/pytest",
+    "python.terminal.activateEnvironment": true,
+    "python.envFile": "${workspaceFolder}/server/python/.env",
+    "python.analysis.extraPaths": [
+        "./server/python"
+    ],
+    "python.cwd": "${workspaceFolder}/server/python",
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "python.testing.cwd": "${workspaceFolder}/server/python"
+}

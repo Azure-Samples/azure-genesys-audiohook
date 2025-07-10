@@ -4,7 +4,7 @@ from azure.cosmos import PartitionKey
 from azure.cosmos.aio import CosmosClient
 from azure.cosmos.exceptions import CosmosResourceNotFoundError
 
-from ..models import Conversation, TranscriptItem
+from ..models import Conversation, SummaryItem, TranscriptItem
 from ..utils.identity import get_azure_credential_async
 from .base_conversation_store import ConversationStore
 
@@ -119,6 +119,16 @@ class CosmosDBConversationStore(ConversationStore):
             partition_key=conversation_id,
             patch_operations=[
                 {"op": "add", "path": "/transcript/-", "value": item.model_dump()}
+            ],
+        )
+
+    async def append_summary(self, conversation_id: str, item: SummaryItem):
+        container = await self._get_container()
+        await container.patch_item(
+            conversation_id,
+            partition_key=conversation_id,
+            patch_operations=[
+                {"op": "add", "path": "/summary/-", "value": item.model_dump()}
             ],
         )
 

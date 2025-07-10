@@ -37,6 +37,8 @@ cp .env.sample .env
 
 Edit the `.env` file to provide your own configuration values. The `.env.sample` file contains example environment variables required to run the server. These variables are loaded automatically when the server starts.
 
+Edit the `app/language/config.yaml` file to use your own AOAI deployment and set summary interval. These variables are loaded automatically when the server starts.
+
 Start the development server with the command below. It will run on port 5001, listening for websocket connections. The server will automatically restart on code changes.
 
 ```bash

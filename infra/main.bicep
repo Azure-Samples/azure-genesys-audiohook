@@ -22,7 +22,8 @@ var tags = {
   application: 'azure-genesys-audiohook'
 }
 var rgName = 'rg-${environmentName}-${uniqueSuffix}'
-var modelName = 'azure-openai-gpt4o-transcribe'
+var transcribeModelName = 'azure-openai-gpt4o-transcribe'
+var modelName = 'gpt-4.1-mini'
 
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: rgName
@@ -39,6 +40,7 @@ module cognitive 'modules/cognitive.bicep' = {
     uniqueSuffix: uniqueSuffix
     tags: tags
     modelDeploymentName: modelName
+    transcribeModelName: transcribeModelName
   }
 }
 
@@ -54,6 +56,7 @@ module keyvault 'modules/keyvault.bicep' = {
     websocketServerApiKey: '${uniqueString(subscription().id, environmentName, 'wsapikey')}${uniqueString(subscription().id, environmentName, 'wsapikey2')}'
     websocketServerClientSecret: base64(uniqueString(subscription().id, environmentName, 'wsclientsecret'))
     speechKey: cognitive.outputs.speechKey
+    aoaiKey: cognitive.outputs.aoaiKey
   }
 }
 
@@ -98,6 +101,7 @@ module containerapp 'modules/containerapp.bicep' = {
     apiKeySecretUri: keyvault.outputs.apiKeySecretUri
     clientSecretUri: keyvault.outputs.clientSecretUri
     speechKeySecretUri: keyvault.outputs.speechKeySecretUri
+    aoaiKeySecretUri: keyvault.outputs.aoaiKeySecretUri
     speechRegion: location
     azureSpeechLanguages: azureSpeechLanguages
     eventHubNamespaceName: eventhub.outputs.eventHubNamespaceName

@@ -1,4 +1,4 @@
-from ..models import Conversation, TranscriptItem
+from ..models import Conversation, SummaryItem, TranscriptItem
 
 
 class ConversationStore:
@@ -39,6 +39,10 @@ class ConversationStore:
 
     async def append_transcript(self, conversation_id: str, item: TranscriptItem):
         """Append an item to the conversation's transcript list."""
+        raise NotImplementedError
+
+    async def append_summary(self, conversation_id: str, item: SummaryItem):
+        """Append an item to the conversation's summary list."""
         raise NotImplementedError
 
     async def close(self):

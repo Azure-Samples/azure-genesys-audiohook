@@ -9,12 +9,19 @@ Also includes other models used throughout the application.
 """
 
 import asyncio
-from typing import Any, Literal
+from collections.abc import Callable
+
+# from .language.agent_assist import AgentAssistant
+# Add TYPE_CHECKING import for type hints only to avoid circular imports
+from typing import TYPE_CHECKING, Any, Literal
 
 import azure.cognitiveservices.speech as speechsdk
 from pydantic import BaseModel, ConfigDict, Field
 
 from .enums import ClientMessageType, CloseReason, DisconnectReason, ServerMessageType
+
+if TYPE_CHECKING:
+    from .language.agent_assist import AgentAssistant
 
 
 # Common message structure
@@ -244,7 +251,6 @@ ServerMessage = (
     DisconnectMessage | OpenedMessage | PongMessage | ClosedMessage | UpdatedMessage
 )
 
-
 # Other application models
 
 
@@ -255,6 +261,11 @@ class TranscriptItem(BaseModel):
     text: str
     start: str | None = None  # ISO 8601 duration string, e.g., "PT1.23S"
     end: str | None = None  # ISO 8601 duration string, e.g., "PT1.23S"
+
+
+class SummaryItem(BaseModel):
+    text: str
+    transcription_end: str | None = None  # ISO 8601 duration string, e.g., "PT1.23S"
 
 
 class Conversation(BaseModel):
@@ -272,6 +283,7 @@ class Conversation(BaseModel):
     position: str
     rtt: list[str] = Field(default_factory=list)
     transcript: list[TranscriptItem] = Field(default_factory=list)
+    summary: list[SummaryItem] = Field(default_factory=list)
 
 
 class WebSocketSessionStorage(BaseModel):
@@ -284,6 +296,8 @@ class WebSocketSessionStorage(BaseModel):
     conversation_id: str | None = None
     # Provider-specific speech session storage
     speech_session: Any | None = None
+    send_message_callback: Callable
+    close_websocket_callback: Callable
 
 
 class Error(BaseModel):
@@ -316,3 +330,5 @@ class AzureAISpeechSession(BaseModel):
     raw_audio: bytearray
     media: MediaChannelInfo
     recognize_task: asyncio.Task
+    assist: "AgentAssistant"  # Use string annotation
+    assist_futures: list[asyncio.Future]
