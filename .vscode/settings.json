@@ -14,5 +14,12 @@
     ],
     "python.cwd": "${workspaceFolder}/server/python",
     "python.terminal.activateEnvInCurrentTerminal": true,
-    "python.testing.cwd": "${workspaceFolder}/server/python"
+    "python.testing.cwd": "${workspaceFolder}/server/python",
+    "python.linting.enabled": true,
+    "python.linting.ruffEnabled": true,
+    "python.linting.ruffPath": "ruff",
+    "python.linting.lintOnSave": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": false
+
 }

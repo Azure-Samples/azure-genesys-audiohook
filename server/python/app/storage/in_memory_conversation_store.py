@@ -1,3 +1,5 @@
+from asyncio.log import logger
+
 from ..models import Conversation, SummaryItem, TranscriptItem
 from .base_conversation_store import ConversationStore
 
@@ -48,14 +50,14 @@ class InMemoryConversationStore(ConversationStore):
             await self.set(conversation)
 
     async def append_transcript(self, conversation_id: str, item: TranscriptItem):
-        print(f"transcription: {item.model_dump()}\n")
+        logger.debug(f"transcription: {item.model_dump()}\n")
         conversation = await self.get(conversation_id)
         if conversation:
             conversation.transcript.append(item)
             await self.set(conversation)
 
     async def append_summary(self, conversation_id: str, item: SummaryItem):
-        print(f"summary: {item.model_dump()}\n")
+        logger.debug(f"summary: {item.model_dump()}\n")
         conversation = await self.get(conversation_id)
         if conversation:
             conversation.summary.append(item)

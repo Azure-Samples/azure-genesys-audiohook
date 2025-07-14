@@ -1,7 +1,6 @@
 import logging
 
-from app.models import WebSocketSessionStorage
-
+from ..models import WebSocketSessionStorage
 from ..speech.speech_provider import SpeechProvider
 from ..storage.base_conversation_store import ConversationStore
 
