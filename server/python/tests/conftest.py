@@ -23,6 +23,9 @@ def mock_external_services():
                 "app.language.agent_assist.AgentAssistant.flush_summary",
                 new_callable=AsyncMock,
             ) as mock_flush_summary,
+            patch(
+                "app.language.agent_assist.AgentAssistant.__init__", return_value=None
+            ),
         ):
             mock_recognize.return_value = None
             mock_on_transcription.return_value = type(

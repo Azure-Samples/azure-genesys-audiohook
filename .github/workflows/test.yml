@@ -20,6 +20,7 @@ env:
   # Azure OpenAI (dummy values)
   AZURE_OPENAI_ENDPOINT: "https://dummy.openai.azure.com/"
   AZURE_OPENAI_MODEL_DEPLOYMENT: "dummy-model"
+  AZURE_OPENAI_API_KEY: "dummy"
 jobs:
   pytest:
     name: "Python ${{ matrix.python-version }}"
