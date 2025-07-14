@@ -33,7 +33,7 @@ class MessageBase(BaseModel):
     version: str
     id: str
     type: str
-    seq: int
+    seq: int | None = None
     parameters: dict[str, Any]
 
 
@@ -329,6 +329,6 @@ class AzureAISpeechSession(BaseModel):
     audio_buffer: speechsdk.audio.PushAudioInputStream
     raw_audio: bytearray
     media: MediaChannelInfo
-    recognize_task: asyncio.Task
+    recognize_task: asyncio.Task | None = None
     assist: "AgentAssistant"  # Use string annotation
     assist_futures: list[asyncio.Future]

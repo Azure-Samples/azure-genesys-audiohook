@@ -1,5 +1,7 @@
 import logging
 
+from app.models import WebSocketSessionStorage
+
 from ..speech.speech_provider import SpeechProvider
 from ..storage.base_conversation_store import ConversationStore
 
@@ -21,7 +23,9 @@ class MediaHandler:
         self.speech_provider = speech_provider
         self.logger = logger
 
-    async def handle_bytes(self, data: bytes, session_id: str):
+    async def handle_bytes(
+        self, data: bytes, session_id: str, ws_session: WebSocketSessionStorage
+    ):
         """
         Handles audio stream in u-Law ("PCMU")
 
@@ -31,7 +35,6 @@ class MediaHandler:
 
         position=\frac{samplesProcessed}{sampleRate}
         """
-        ws_session = self.active_ws_sessions[session_id]
 
         if not self.speech_provider:
             self.logger.error(f"[{session_id}] No speech provider configured.")

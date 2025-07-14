@@ -181,7 +181,7 @@ class SessionManager:
 
         async def send_message_callback(
             type: ServerMessageType,
-            client_message: dict,
+            client_message: ClientMessage,
             parameters: dict | None = None,
         ):
             if parameters is None:
@@ -348,11 +348,16 @@ class SessionManager:
         session_id = client_message.id
         ws_session = self.active_ws_sessions[session_id]
         ws_session.server_seq += 1
+        clientseq = (
+            client_message.seq
+            if client_message.seq is not None
+            else ws_session.client_seq
+        )
         server_message = ServerMessageBase(
             version="2",
             type=type,
             seq=ws_session.server_seq,
-            clientseq=client_message.seq,
+            clientseq=clientseq,
             id=session_id,
             parameters=parameters,
         )

@@ -12,6 +12,7 @@ from app.language.agent_assist import AgentAssistant
 from ..enums import AzureGenesysEvent, ServerMessageType
 from ..models import (
     AzureAISpeechSession,
+    ClientMessageBase,
     MediaChannelInfo,
     SummaryItem,
     TranscriptItem,
@@ -25,6 +26,9 @@ from ..utils.event_entity_builder import (
 )
 from ..utils.identity import get_speech_token
 from .speech_provider import SpeechProvider
+
+# Rebuild the model after all imports are complete
+AzureAISpeechSession.model_rebuild()
 
 
 class AzureAISpeechProvider(SpeechProvider):
@@ -71,15 +75,28 @@ class AzureAISpeechProvider(SpeechProvider):
         config_path = os.path.join(provider_script_dir, "../language/config.yaml")
         assist = AgentAssistant(config_path)
 
+        # ws_session.speech_session = AzureAISpeechSession(
+        #     audio_buffer=stream,
+        #     raw_audio=bytearray(),
+        #     media=media,
+        #     recognize_task=asyncio.create_task(
+        #         self._recognize_speech(session_id, ws_session)
+        #     ),
+        #     assist=assist,
+        #     assist_futures=[],
+        # )
+        # Create the session first without the task
         ws_session.speech_session = AzureAISpeechSession(
             audio_buffer=stream,
             raw_audio=bytearray(),
             media=media,
-            recognize_task=asyncio.create_task(
-                self._recognize_speech(session_id, ws_session)
-            ),
+            recognize_task=None,  # Set to None initially
             assist=assist,
             assist_futures=[],
+        )
+        # Now create and assign the task after the session is set
+        ws_session.speech_session.recognize_task = asyncio.create_task(
+            self._recognize_speech(session_id, ws_session)
         )
 
     async def handle_audio_frame(
@@ -289,6 +306,7 @@ class AzureAISpeechProvider(SpeechProvider):
             )
 
         asyncio.run_coroutine_threadsafe(_update(), loop)
+        # Try to send the event to the event publisher
         asyncio.run_coroutine_threadsafe(
             self.send_event(
                 event=AzureGenesysEvent.PARTIAL_TRANSCRIPT,
@@ -297,11 +315,19 @@ class AzureAISpeechProvider(SpeechProvider):
             ),
             loop,
         )
-
+        # Send the transcript entity to the client
+        client_message = ClientMessageBase(
+            id=session_id,
+            position=start,  # Add the required position field
+            version="2",
+            type=ServerMessageType.EVENT,
+            seq=None,
+            parameters={"entities": [transcript_entity]},
+        )
         asyncio.run_coroutine_threadsafe(
             ws_session.send_message_callback(
                 type=ServerMessageType.EVENT,
-                client_message={"id": session_id},
+                client_message=client_message,
                 parameters={"entities": [transcript_entity]},  # Client expect a list
             ),
             loop,
@@ -309,6 +335,7 @@ class AzureAISpeechProvider(SpeechProvider):
 
         first_word = words[0] if words else {}
         speech_session = cast(AzureAISpeechSession, ws_session.speech_session)
+        # Create a future for the assist task
         future = asyncio.create_task(
             self.handle_agent_assist(
                 session_id,
@@ -368,13 +395,21 @@ class AzureAISpeechProvider(SpeechProvider):
                 utterances=[utterance],
                 suggestions=[],
             )
-
+            client_message = ClientMessageBase(
+                id=session_id,
+                version="2",
+                type=ServerMessageType.EVENT,
+                seq=None,
+                position=f"PT{offset / 10_000_000:.2f}S",  # this is not relevant
+                parameters={"entities": [agent_assist_entity]},
+            )
             try:
                 await ws_session.send_message_callback(
                     type=ServerMessageType.EVENT,
-                    client_message={"id": session_id},
+                    client_message=client_message,
                     parameters={"entities": [agent_assist_entity]},
                 )
+                self.logger.info(f"[{session_id}] Agent assist event sent successfully")
             except Exception as e:
                 self.logger.warning(
                     f"[{session_id}] Failed to send assist message: {e}"
@@ -409,11 +444,19 @@ class AzureAISpeechProvider(SpeechProvider):
                     utterances=[utterance],
                     suggestions=[],
                 )
-
+                # Create proper ClientMessageBase for summary
+                client_message = ClientMessageBase(
+                    id=session_id,
+                    version="2",
+                    type=ServerMessageType.EVENT,
+                    seq=None,
+                    position="PT0S",  # or appropriate position
+                    parameters={"entities": [entity]},
+                )
                 try:
                     await ws_session.send_message_callback(
                         type=ServerMessageType.EVENT,
-                        client_message={"id": session_id},
+                        client_message=client_message,
                         parameters={"entities": [entity]},
                     )
                 except Exception as e:
