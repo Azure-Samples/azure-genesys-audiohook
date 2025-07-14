@@ -8,18 +8,11 @@ on:
 env:
   CI: true
    # Storage (dummy values)
-  AZURE_STORAGE_CONNECTION_STRING: "UseDevelopmentStorage=true"
-  AZURE_STORAGE_ACCOUNT_URL: "https://dummyaccount.blob.core.windows.net/"
+  AZURE_STORAGE_CONNECTION_STRING: ""
+  AZURE_STORAGE_ACCOUNT_URL: ""
   # Event Hub (dummy values)
-  AZURE_EVENT_HUB_FULLY_QUALIFIED_NAMESPACE: "dummy.servicebus.windows.net"
-  AZURE_EVENT_HUB_CONNECTION_STRING: "Endpoint=sb://dummy.servicebus.windows.net/;SharedAccessKeyName=dummy;SharedAccessKey=dummy"
-  # Speech provider selection
-  SPEECH_PROVIDER: "azure-ai-speech"
-  AZURE_SPEECH_KEY: "dummy-key"
-  AZURE_SPEECH_RESOURCE_ID: "dummy-resource-id"
-  # Azure OpenAI (dummy values)
-  AZURE_OPENAI_ENDPOINT: "https://dummy.openai.azure.com/"
-  AZURE_OPENAI_MODEL_DEPLOYMENT: "dummy-model"
+  AZURE_EVENT_HUB_FULLY_QUALIFIED_NAMESPACE: ""
+  AZURE_EVENT_HUB_CONNECTION_STRING: ""
 jobs:
   pytest:
     name: "Python ${{ matrix.python-version }}"
