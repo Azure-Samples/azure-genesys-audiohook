@@ -111,7 +111,9 @@ class AzureOpenAIGPT4oTranscriber(SpeechProvider):
             self.endpoint.replace("https://", "wss://")
             + "/openai/realtime?api-version=2025-04-01-preview&intent=transcription"
         )
-
+        # For local testing with the genesys client,
+        # you can provide the OpenAI Key in the .env file
+        # or get a token using the default Azure credential.
         if self.api_key:
             headers = {
                 "api-key": self.api_key,

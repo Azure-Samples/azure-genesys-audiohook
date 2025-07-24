@@ -32,7 +32,7 @@ def build_transcript_entity(
             {
                 "type": "word",
                 "value": word["Word"],
-                "confidence": word.get("Confidence", 0.85),
+                "confidence": word.get("Confidence", 0.0),
                 "offset": f"PT{word['Offset'] / 10_000_000:.2f}S",
                 "duration": f"PT{word['Duration'] / 10_000_000:.2f}S",
                 "language": language,

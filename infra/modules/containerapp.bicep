@@ -12,12 +12,12 @@ param cosmosDbContainer string
 param speechRegion string
 param apiKeySecretUri string
 param clientSecretUri string
-param speechKeySecretUri string
-param aoaiKeySecretUri string
 param azureSpeechLanguages string
 param eventHubNamespaceName string
 param eventHubName string
 param speechProvider string
+param agentAssistReducerThreshold int
+param agentAssistSummaryInterval int
 
 // Helper to sanitize environmentName for valid container app name
 var sanitizedEnvName = toLower(replace(replace(replace(replace(environmentName, ' ', '-'), '--', '-'), '[^a-zA-Z0-9-]', ''), '_', '-'))
@@ -83,16 +83,6 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
           keyVaultUrl: clientSecretUri
           identity: 'system'
         }
-        {
-          name: 'azure-speech-key'
-          keyVaultUrl: speechKeySecretUri
-          identity: 'system'
-        }
-        {
-          name: 'azure-openai-key'
-          keyVaultUrl: aoaiKeySecretUri
-          identity: 'system'
-        }
       ]
     }
     template: {
@@ -113,19 +103,9 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
               name: 'AZURE_OPENAI_MODEL_DEPLOYMENT'
               value: modelDeploymentName
             }
-            // TODO - remove when update all auth to managed identity
-            {
-              name: 'AZURE_OPENAI_KEY'
-              secretRef: 'azure-openai-key'
-            }
             {
               name: 'AZURE_SPEECH_RESOURCE_ID'
               value: speechResourceId
-            }
-            // TODO - remove when stereo preview works with managed identity
-            {
-              name: 'AZURE_SPEECH_KEY'
-              secretRef: 'azure-speech-key'
             }
             {
               name: 'AZURE_SPEECH_REGION'
@@ -166,6 +146,14 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
             {
               name: 'SPEECH_PROVIDER'
               value: speechProvider
+            }
+            {
+              name: 'AGENT_ASSIST_REDUCER_THRESHOLD'
+              value: string(agentAssistReducerThreshold)
+            }
+            {
+              name: 'AGENT_ASSIST_SUMMARY_INTERVAL'
+              value: string(agentAssistSummaryInterval)
             }
           ]
           resources: {

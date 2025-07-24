@@ -1,6 +1,5 @@
 import os
 
-import yaml
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.contents import ChatHistorySummarizationReducer
 from semantic_kernel.kernel import Kernel
@@ -9,9 +8,9 @@ from semantic_kernel.kernel import Kernel
 class AgentAssistant:
     """Agent Assist maintains conversational context and create summary, and performs RAG against a user-supplied domain knowledge base."""
 
-    def __init__(self, config_path: str):
-        with open(config_path) as f:
-            self.config = yaml.safe_load(f)
+    def __init__(self):
+        self.reducer_threshold = int(os.getenv("AGENT_ASSIST_REDUCER_THRESHOLD", "5"))
+        self.summary_interval = int(os.getenv("AGENT_ASSIST_SUMMARY_INTERVAL", "4"))
 
         # Load configuration from environment
         self.aoai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -21,7 +20,7 @@ class AgentAssistant:
         self.kernel = self.initialize_kernel()
         self.reducer = ChatHistorySummarizationReducer(
             service=self.kernel.get_service(service_id="chat-completion"),
-            target_count=self.config.get("reducer_threshold", 5),
+            target_count=self.reducer_threshold,
             auto_reduce=True,
         )
         self.reducer.add_system_message("""You are an Agent Assist who receives transcription from both Agent and Customer.
@@ -50,7 +49,7 @@ class AgentAssistant:
     async def on_transcription(self, fragment: str) -> str | None:
         self.message_buffer.append(fragment)
 
-        if len(self.message_buffer) < self.config["summary_interval"]:
+        if len(self.message_buffer) < self.summary_interval:
             print(f"current buffer size {len(self.message_buffer)}")
             return None  # Not ready yet
 

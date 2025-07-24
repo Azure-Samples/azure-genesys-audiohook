@@ -69,22 +69,9 @@ class AzureAISpeechProvider(SpeechProvider):
         stream = speechsdk.audio.PushAudioInputStream(stream_format=audio_format)
 
         # Get the absolute path to the provider.py script's directory
-        provider_script_dir = os.path.dirname(os.path.abspath(__file__))
-
         # Calculate the path to the config file based on the provider.py's directory
-        config_path = os.path.join(provider_script_dir, "../language/config.yaml")
-        assist = AgentAssistant(config_path)
+        assist = AgentAssistant()
 
-        # ws_session.speech_session = AzureAISpeechSession(
-        #     audio_buffer=stream,
-        #     raw_audio=bytearray(),
-        #     media=media,
-        #     recognize_task=asyncio.create_task(
-        #         self._recognize_speech(session_id, ws_session)
-        #     ),
-        #     assist=assist,
-        #     assist_futures=[],
-        # )
         # Create the session first without the task
         ws_session.speech_session = AzureAISpeechSession(
             audio_buffer=stream,
@@ -170,7 +157,9 @@ class AzureAISpeechProvider(SpeechProvider):
                 f"wss://{region}.stt.speech.microsoft.com"
                 "/speech/recognition/conversation/cognitiveservices/v1?setfeature=multichannel2"
             )
-
+        # For local testing with the genesys client,
+        # you can provide the speech key in the .env file
+        # or use the resource ID to get a token.
         if self.speech_key:
             speech_config = speechsdk.SpeechConfig(
                 subscription=self.speech_key,
@@ -178,12 +167,29 @@ class AzureAISpeechProvider(SpeechProvider):
                 endpoint=endpoint,
             )
         else:
-            token = get_speech_token(self.speech_resource_id)
-            speech_config = speechsdk.SpeechConfig(
-                auth_token=token,
-                region=None if is_multichannel else region,
-                endpoint=endpoint,
-            )
+            try:
+                self.logger.info(
+                    f"[{session_id}] Getting speech token for resource: {self.speech_resource_id}"
+                )
+                # Add timeout to prevent hanging
+                token = await asyncio.wait_for(
+                    asyncio.to_thread(get_speech_token, self.speech_resource_id),
+                    timeout=30.0,  # 30 second timeout
+                )
+                self.logger.info(f"[{session_id}] Successfully obtained speech token")
+                # Create SpeechConfig without auth_token first
+                speech_config = speechsdk.SpeechConfig(
+                    region=None if is_multichannel else region,
+                    endpoint=endpoint,
+                )
+                # Set the authorization token separately
+                speech_config.authorization_token = token
+            except TimeoutError:
+                self.logger.error(f"[{session_id}] Timeout getting speech token")
+                raise
+            except Exception as e:
+                self.logger.error(f"[{session_id}] Failed to get speech token: {e}")
+                raise
 
         if len(self.supported_languages) > 1:
             speech_config.speech_recognition_language = self.supported_languages[0]
