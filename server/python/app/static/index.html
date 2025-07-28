@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conversations Viewer</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f7fa;
+      margin: 0;
+      padding: 2rem;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+      color: #2c3e50;
+    }
+    .conversation {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .collapsed .details {
+      display: none;
+    }
+    .header {
+      background: #3498db;
+      color: #fff;
+      padding: 1rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+    }
+    .details {
+      display: flex;
+      gap: 2%;
+      padding: 1rem;
+    }
+    .transcript, .summary {
+      width: 49%;
+      background: #fafafa;
+      border: 1px solid #e1e4e8;
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    .transcript h3, .summary h3 {
+      margin-top: 0;
+      font-size: 1.1rem;
+      color: #2c3e50;
+    }
+    .transcript p, .summary p {
+      margin: 0.5rem 0;
+      line-height: 1.5;
+      background: #ffffff;
+      padding: 0.5rem;
+      border-radius: 6px;
+      border-left: 4px solid #3498db;
+      white-space: pre-wrap; /* preserves line breaks */
+    }
+  </style>
+</head>
+<body>
+  <h1>Conversations Viewer</h1>
+  <div id="conversations"></div>
+
+  <script>
+    const apiKey = new URLSearchParams(window.location.search).get('key');
+    const expandedConversations = new Set();
+    let refreshInterval = 3000;
+    let intervalId;
+
+    async function fetchData() {
+      try {
+        const res = await fetch(`/api/conversations?key=${apiKey}`);
+        const data = await res.json();
+        const container = document.getElementById('conversations');
+        container.innerHTML = '';
+
+        let hasActive = false;
+
+        for (const conv of data.conversations) {
+          if (conv.active) hasActive = true;
+
+          // Use persisted expand state, or expanded if active session
+          const isExpanded = expandedConversations.has(conv.id) || conv.active;
+
+          const convDiv = document.createElement('div');
+          convDiv.className = 'conversation' + (isExpanded ? '' : ' collapsed');
+
+          const header = document.createElement('div');
+          header.className = 'header';
+          header.textContent = `ID: ${conv.id} | Session: ${conv.session_id}`;
+          header.onclick = () => {
+            if (expandedConversations.has(conv.id)) {
+              expandedConversations.delete(conv.id);
+              convDiv.classList.add('collapsed');
+            } else {
+              expandedConversations.add(conv.id);
+              convDiv.classList.remove('collapsed');
+            }
+          };
+
+          const details = document.createElement('div');
+          details.className = 'details';
+
+          const transcriptDiv = document.createElement('div');
+          transcriptDiv.className = 'transcript';
+          transcriptDiv.innerHTML = '<h3>Transcript</h3>';
+
+          const summaryDiv = document.createElement('div');
+          summaryDiv.className = 'summary';
+          summaryDiv.innerHTML = '<h3>Summary</h3>';
+
+          const transcripts = conv.transcript || [];
+          const summaries = conv.summary || [];
+
+          let sumIndex = 0;
+          for (let i = 0; i < transcripts.length; i++) {
+            const t = transcripts[i];
+            const tEndSec = parseTime(t.end);
+
+            const tp = document.createElement('p');
+            tp.textContent = `[${t.channel}] ${t.text}`;
+            transcriptDiv.appendChild(tp);
+
+            if (
+              sumIndex < summaries.length &&
+              (parseTime(summaries[sumIndex].transcription_end) <= tEndSec || summaries[sumIndex].transcription_end === 'end')
+            ) {
+              const sp = document.createElement('p');
+              sp.innerHTML = summaries[sumIndex].text.replace(/\n/g, '<br>');
+              summaryDiv.appendChild(sp);
+              sumIndex++;
+            }
+          }
+
+          details.appendChild(transcriptDiv);
+          details.appendChild(summaryDiv);
+
+          convDiv.appendChild(header);
+          convDiv.appendChild(details);
+          container.appendChild(convDiv);
+        }
+
+        // Adjust refresh interval depending on active session
+        const newInterval = hasActive ? 2000 : 60000;
+        if (newInterval !== refreshInterval) {
+          refreshInterval = newInterval;
+          clearInterval(intervalId);
+          intervalId = setInterval(fetchData, refreshInterval);
+        }
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+      }
+    }
+
+    function parseTime(t) {
+      if (t === 'end') return Infinity;
+      return parseFloat(t.replace(/PT|S/g, '')) || 0;
+    }
+
+    fetchData();
+    intervalId = setInterval(fetchData, refreshInterval);
+  </script>
+</body>
+</html>

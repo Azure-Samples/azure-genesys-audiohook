@@ -16,13 +16,20 @@ param azureSpeechLanguages string = 'en-US'
 @allowed(['azure-ai-speech', 'azure-openai-gpt4o-transcribe'])
 param speechProvider string = 'azure-ai-speech'
 
+@description('Agent Assist reducer threshold')
+param agentAssistReducerThreshold int = 5
+
+@description('Agent Assist summary interval')
+param agentAssistSummaryInterval int = 4
+
 var uniqueSuffix = substring(uniqueString(subscription().id, environmentName), 0, 5)
 var tags = {
   environment: environmentName
   application: 'azure-genesys-audiohook'
 }
 var rgName = 'rg-${environmentName}-${uniqueSuffix}'
-var modelName = 'azure-openai-gpt4o-transcribe'
+var transcribeModelName = 'azure-openai-gpt4o-transcribe'
+var modelName = 'gpt-4.1-mini'
 
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: rgName
@@ -39,6 +46,7 @@ module cognitive 'modules/cognitive.bicep' = {
     uniqueSuffix: uniqueSuffix
     tags: tags
     modelDeploymentName: modelName
+    transcribeModelName: transcribeModelName
   }
 }
 
@@ -53,7 +61,6 @@ module keyvault 'modules/keyvault.bicep' = {
     tags: tags
     websocketServerApiKey: '${uniqueString(subscription().id, environmentName, 'wsapikey')}${uniqueString(subscription().id, environmentName, 'wsapikey2')}'
     websocketServerClientSecret: base64(uniqueString(subscription().id, environmentName, 'wsclientsecret'))
-    speechKey: cognitive.outputs.speechKey
   }
 }
 
@@ -97,12 +104,13 @@ module containerapp 'modules/containerapp.bicep' = {
     cosmosDbContainer: cosmosdb.outputs.cosmosDbContainerName
     apiKeySecretUri: keyvault.outputs.apiKeySecretUri
     clientSecretUri: keyvault.outputs.clientSecretUri
-    speechKeySecretUri: keyvault.outputs.speechKeySecretUri
     speechRegion: location
     azureSpeechLanguages: azureSpeechLanguages
     eventHubNamespaceName: eventhub.outputs.eventHubNamespaceName
     eventHubName: eventhub.outputs.eventHubName
     speechProvider: speechProvider // Pass the parameter
+    agentAssistReducerThreshold: agentAssistReducerThreshold
+    agentAssistSummaryInterval: agentAssistSummaryInterval
   }
 }
 

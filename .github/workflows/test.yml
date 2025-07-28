@@ -5,6 +5,22 @@ on:
   push:
     branches: [main]
 
+env:
+  CI: true
+   # Storage (dummy values)
+  AZURE_STORAGE_CONNECTION_STRING: ""
+  AZURE_STORAGE_ACCOUNT_URL: ""
+  # Event Hub (dummy values)
+  AZURE_EVENT_HUB_FULLY_QUALIFIED_NAMESPACE: ""
+  AZURE_EVENT_HUB_CONNECTION_STRING: ""
+  # Speech provider selection
+  SPEECH_PROVIDER: "azure-ai-speech"
+  AZURE_SPEECH_KEY: "dummy-key"
+  AZURE_SPEECH_RESOURCE_ID: "dummy-resource-id"
+  # Azure OpenAI (dummy values)
+  AZURE_OPENAI_ENDPOINT: "https://dummy.openai.azure.com/"
+  AZURE_OPENAI_MODEL_DEPLOYMENT: "dummy-model"
+  AZURE_OPENAI_API_KEY: "dummy"
 jobs:
   pytest:
     name: "Python ${{ matrix.python-version }}"
